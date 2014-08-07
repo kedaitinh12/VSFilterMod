@@ -25,6 +25,13 @@
 #include <time.h>
 #include "RTS.h"
 
+#ifdef _VSMOD // path m012. Lua animation
+#include <lua.h>
+#include <lualib.h>
+
+
+#endif
+
 // WARNING: this isn't very thread safe, use only one RTS a time.
 static HDC g_hDC;
 static int g_hDC_refcnt = 0;
@@ -2018,6 +2025,10 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
             params.Add(cmd.Mid(2)), cmd = cmd.Left(2);
         else if(!cmd.Find(L"k") || !cmd.Find(L"K"))
             params.Add(cmd.Mid(1)), cmd = cmd.Left(1);
+#ifdef _VSMOD // patch m012. add lua animation
+        else if(!cmd.Find(L"lua"))
+            ;
+#endif
 #ifdef _VSMOD // patch m005. add some move types
         else if(!cmd.Find(L"mover"))	// radial move
             ;
@@ -2673,6 +2684,16 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                       ? wcstol(p, NULL, 10) * 10
                       : 1000;
         }
+#ifdef _VSMOD // patch m012. add lua animation
+        else if(cmd == L"lua")
+        {
+            if(params.GetCount() > 0)
+            {
+                CString Func = params[0];
+
+            }
+        }
+#endif
 #ifdef _VSMOD // patch m005. add some move types
         else if(cmd == L"mover") // {\mover(x1,x2,x2,y2,alp1,alp2,r1,r2,t1,t2)}
         {

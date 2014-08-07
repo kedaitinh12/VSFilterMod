@@ -26,6 +26,15 @@
 #include "TextFile.h"
 #include "GFN.h"
 
+#ifdef _VSMOD // path m012. Lua animation
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
+
+#include <iostream>
+#include <fstream>
+#endif
+
 #define div_255_fast(x) (((x) + 1 + (((x) + 1) >> 8)) >> 8)
 
 typedef enum {TIME, FRAME} tmode; // the meaning of STSEntry::start/end
@@ -299,11 +308,17 @@ public:
 #ifdef _VSMOD
     CString m_resPath;
     CAtlArray<MOD_PNGIMAGE> mod_images;
-
+#ifdef INDEXING
     // index array, for fast speed
     DWORD   ind_size; // size of array
     DWORD*  ind_time; // time array
     DWORD*  ind_pos;  // segment indexes array (start)
+#endif
+
+    // Lua
+    lua_State *   L;
+    std::wofstream LuaLog;
+    CString       LuaLogName;
 #endif
 
     enum EPARCompensationType
@@ -353,7 +368,13 @@ public:
     bool LoadUUEFile(CTextFile* file, CString m_fn);
     bool LoadEfile(CString& img, CString m_fn);
 
+    // Patch m012. Create lua state
+    void ExecLuaFile(CString Filename);
+    void LuaError(CString Text);
+
+    #ifdef INDEXING
     void MakeIndex(int SizeOfSegment);
+    #endif
 #endif
     void Add(CStringW str, bool fUnicode, int start, int end, CString style = _T("Default"), CString actor = _T(""), CString effect = _T(""), CRect marginRect = CRect(0, 0, 0, 0), int layer = 0, int readorder = -1);
     STSStyle* CreateDefaultStyle(int CharSet);
