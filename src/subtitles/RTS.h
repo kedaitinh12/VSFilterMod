@@ -251,6 +251,7 @@ class CRenderedTextSubtitle : public CSimpleTextSubtitle, public ISubPicProvider
     void LuaAddIntegerField(lua_State * L, CStringA Field, int Value);
     void LuaAddNumberField(lua_State * L, CStringA Field, double Value);
 
+    bool LuaHasFunction(lua_State * L, CString funcname);
     bool LuaIsNumber(lua_State * L, CString fieldname);
     bool LuaIsTable(lua_State * L, CString fieldname);
     bool LuaIsBool(lua_State * L, CString fieldname);

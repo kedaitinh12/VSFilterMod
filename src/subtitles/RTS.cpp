@@ -25,7 +25,7 @@
 #include <time.h>
 #include "RTS.h"
 
-#ifdef _VSMOD // path m012. Lua animation
+#ifdef _VSMOD
 #ifdef _LUA
 // path m012. Lua animation
 #include <lua.h>
@@ -1937,6 +1937,16 @@ bool CRenderedTextSubtitle::LuaIsBool(lua_State * L, CString fieldname)
     return Result;
 }
 
+bool CRenderedTextSubtitle::LuaHasFunction(lua_State * L, CString funcname)
+{
+    CStringA funcnameA(funcname);
+    lua_pushstring(L, funcnameA);
+    lua_rawget(L, LUA_GLOBALSINDEX);
+    bool Result = lua_isfunction(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
 int CRenderedTextSubtitle::LuaGetInt(lua_State * L, CString fieldname)
 {
     CStringA fieldnameA(fieldname);
@@ -2006,6 +2016,7 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
         lua_getfield(L, -1, "style");
         
         // Font style
+        if(LuaIsNumber(L, L"fs")) style.fontSize = LuaGetFloat(L, L"fs");
         if(LuaIsBool(L, L"bold")) style.fontWeight = (LuaGetBool(L, L"bold") ? FW_BOLD : FW_NORMAL);
         if(LuaIsBool(L, L"italic")) style.fItalic = LuaGetBool(L, L"italic");
         if(LuaIsBool(L, L"underline")) style.fUnderline = LuaGetBool(L, L"underline");
@@ -2120,6 +2131,53 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
             }
         }
 
+#ifdef _LUA
+        // Direct function call!
+        CStringA Func(cmd);
+        if(LuaHasFunction(L, cmd))
+        {
+            if(!fAnimate)
+            {
+                // Find function =D
+                lua_pushstring(L, Func);
+                lua_rawget(L, LUA_GLOBALSINDEX);
+
+                // Create line table
+                lua_newtable(L);
+                LuaAddIntegerField(L, "time", m_time);
+                LuaAddIntegerField(L, "length", m_delay);
+
+                // Push arguments
+                for(int arg = 0; arg < params.GetCount(); arg++)
+                {
+                    CStringA Param(params[arg]);
+                    lua_pushstring(L, Param); 
+                }
+                if (lua_pcall(L, params.GetCount() + 1, 1, 0) != 0)
+                {
+                    // error
+                    CString ErrorText = L"Error: ";
+                    CString LuaErrorText(lua_tostring(L, -1));
+
+                    LuaError(ErrorText + LuaErrorText);
+                }
+                else
+                {
+                    // Retrieve result
+                    if (!lua_istable(L, -1))
+                        LuaError(L"Line function must return a table");
+                    else
+                    {
+                        sub->m_fAnimated = true;
+                        ParseLuaTable(sub, style);
+                    }
+                }
+                lua_pop(L, 1);
+            }
+            continue;
+        }
+        else
+#endif
         if(!cmd.Find(L"1c") || !cmd.Find(L"2c") || !cmd.Find(L"3c") || !cmd.Find(L"4c"))
             params.Add(cmd.Mid(2).Trim(L"&H")), cmd = cmd.Left(2);
         else if(!cmd.Find(L"1a") || !cmd.Find(L"2a") || !cmd.Find(L"3a") || !cmd.Find(L"4a"))
