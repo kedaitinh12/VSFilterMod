@@ -248,6 +248,9 @@ class CRenderedTextSubtitle : public CSimpleTextSubtitle, public ISubPicProvider
     bool ParseHtmlTag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org);
 
 #ifdef _LUA
+    void LuaAddIntegerField(lua_State * L, CStringA Field, int Value);
+    void LuaAddNumberField(lua_State * L, CStringA Field, double Value);
+
     bool LuaIsNumber(lua_State * L, CString fieldname);
     bool LuaIsTable(lua_State * L, CString fieldname);
     bool LuaIsBool(lua_State * L, CString fieldname);

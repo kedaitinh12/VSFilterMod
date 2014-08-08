@@ -1898,6 +1898,18 @@ void CRenderedTextSubtitle::ParsePolygon(CSubtitle* sub, CStringW str, STSStyle&
 }
 
 #ifdef _LUA
+void CRenderedTextSubtitle::LuaAddIntegerField(lua_State * L, CStringA Field, int Value)
+{
+    lua_pushinteger(L, Value);
+    lua_setfield(L, -2, Field);
+}
+
+void CRenderedTextSubtitle::LuaAddNumberField(lua_State * L, CStringA Field, double Value)
+{
+    lua_pushnumber(L, Value);
+    lua_setfield(L, -2, Field);
+}
+
 bool CRenderedTextSubtitle::LuaIsNumber(lua_State * L, CString fieldname)
 {
     CStringA fieldnameA(fieldname);
@@ -1993,7 +2005,42 @@ void CRenderedTextSubtitle::ParseLuaTable(STSStyle& style)
         // Push table on top
         lua_getfield(L, -1, "style");
         
+        // Font style
         if(LuaIsBool(L, L"bold")) style.fontWeight = (LuaGetBool(L, L"bold") ? FW_BOLD : FW_NORMAL);
+        if(LuaIsBool(L, L"italic")) style.fItalic = LuaGetBool(L, L"italic");
+        if(LuaIsBool(L, L"underline")) style.fUnderline = LuaGetBool(L, L"underline");
+        if(LuaIsBool(L, L"strikeout")) style.fStrikeOut = LuaGetBool(L, L"strikeout");
+
+        // Blur
+        if(LuaIsNumber(L, L"blur")) style.fGaussianBlur = LuaGetFloat(L, L"blur");
+        if(LuaIsNumber(L, L"be")) style.fBlur = LuaGetFloat(L, L"be");
+
+        // Transformation
+        if(LuaIsNumber(L, L"frx")) style.fontAngleX = LuaGetFloat(L, L"frx");
+        if(LuaIsNumber(L, L"fry")) style.fontAngleY = LuaGetFloat(L, L"fry");
+        if(LuaIsNumber(L, L"frz")) style.fontAngleZ = LuaGetFloat(L, L"frz");
+        if(LuaIsNumber(L, L"fax")) style.fontShiftX = LuaGetFloat(L, L"fax");
+        if(LuaIsNumber(L, L"fay")) style.fontShiftY = LuaGetFloat(L, L"fay");
+        if(LuaIsNumber(L, L"fsx")) style.fontScaleX = LuaGetFloat(L, L"fsx");
+        if(LuaIsNumber(L, L"fsy")) style.fontScaleY = LuaGetFloat(L, L"fsy");
+
+        // Shadow and border
+        if(LuaIsNumber(L, L"shadx")) style.shadowDepthX = LuaGetFloat(L, L"shadx");
+        if(LuaIsNumber(L, L"shady")) style.shadowDepthY = LuaGetFloat(L, L"shady");
+        if(LuaIsNumber(L, L"bordx")) style.outlineWidthX = LuaGetFloat(L, L"bordx");
+        if(LuaIsNumber(L, L"bordy")) style.outlineWidthY = LuaGetFloat(L, L"bordy");
+
+        // Alphas
+        if(LuaIsNumber(L, L"a1")) style.alpha[0] = LuaGetInt(L, L"a1") & 0xFF;
+        if(LuaIsNumber(L, L"a2")) style.alpha[1] = LuaGetInt(L, L"a2") & 0xFF;
+        if(LuaIsNumber(L, L"a3")) style.alpha[2] = LuaGetInt(L, L"a3") & 0xFF;
+        if(LuaIsNumber(L, L"a4")) style.alpha[3] = LuaGetInt(L, L"a4") & 0xFF;
+
+        // Colors
+        if(LuaIsNumber(L, L"c1")) style.colors[0] = LuaGetInt(L, L"c1") & 0xFFFFFF;
+        if(LuaIsNumber(L, L"c2")) style.colors[1] = LuaGetInt(L, L"c2") & 0xFFFFFF;
+        if(LuaIsNumber(L, L"c3")) style.colors[2] = LuaGetInt(L, L"c3") & 0xFFFFFF;
+        if(LuaIsNumber(L, L"c4")) style.colors[3] = LuaGetInt(L, L"c4") & 0xFFFFFF;
 
         // Pop table
         lua_pop(L, 1);
@@ -2793,7 +2840,7 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
 #ifdef _LUA
         else if(cmd == L"lua")
         {
-            if(params.GetCount() > 0)
+            if((params.GetCount() > 0) && !fAnimate)
             {
                 CStringA Func(params[0]);
 
@@ -2803,13 +2850,18 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
 
                 if(lua_isfunction(L, -1))
                 {
+                    // Create line table
+                    lua_newtable(L);
+                    LuaAddIntegerField(L, "time", m_time);
+                    LuaAddIntegerField(L, "length", m_delay);
+
                     // Push arguments
                     for(int arg = 1; arg < params.GetCount(); arg++)
                     {
                         CStringA Param(params[arg]);
                         lua_pushstring(L, Param); 
                     }
-                    if (lua_pcall(L, params.GetCount() - 1, 1, 0) != 0)
+                    if (lua_pcall(L, params.GetCount(), 1, 0) != 0)
                     {
                         // error
                         CString ErrorText = L"Error: ";
@@ -2823,7 +2875,10 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                         if (!lua_istable(L, -1))
                             LuaError(L"Line function must return a table");
                         else
+                        {
+                            sub->m_fAnimated = true;
                             ParseLuaTable(style);
+                        }
                     }
                 }
                 lua_pop(L, 1);
