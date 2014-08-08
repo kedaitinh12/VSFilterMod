@@ -26,10 +26,11 @@
 #include "RTS.h"
 
 #ifdef _VSMOD // path m012. Lua animation
+#ifdef _LUA
+// path m012. Lua animation
 #include <lua.h>
 #include <lualib.h>
-
-
+#endif
 #endif
 
 // WARNING: this isn't very thread safe, use only one RTS a time.
@@ -1896,6 +1897,110 @@ void CRenderedTextSubtitle::ParsePolygon(CSubtitle* sub, CStringW str, STSStyle&
     }
 }
 
+#ifdef _LUA
+bool CRenderedTextSubtitle::LuaIsNumber(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_isnumber(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+bool CRenderedTextSubtitle::LuaIsTable(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_istable(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+bool CRenderedTextSubtitle::LuaIsBool(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_isboolean(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+int CRenderedTextSubtitle::LuaGetInt(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    if(!lua_isnumber(L, -1))
+    {
+        lua_pop(L, 1);
+        LuaError(CString(L"Invalid number '") + fieldname + L"' field in style");
+        return 0;
+    }
+    int res = (int)lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    return res;
+}
+
+double CRenderedTextSubtitle::LuaGetFloat(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    if(!lua_isnumber(L, -1))
+    {
+        LuaError(CString(L"Invalid number '") + fieldname + L"' field in style");
+        lua_pop(L, 1);
+        return 0;
+    }
+    double res = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    return res;
+}
+
+CString CRenderedTextSubtitle::LuaGetStr(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    if(!lua_isstring(L, -1))
+    {
+        LuaError(CString(L"Invalid string '") + fieldname + L"' field in style");
+        lua_pop(L, 1);
+        return L"";
+    }
+    CString res(lua_tostring(L, -1));
+    lua_pop(L, 1);
+    return res;
+}
+
+bool CRenderedTextSubtitle::LuaGetBool(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    if(!lua_isboolean(L, -1))
+    {
+        lua_pop(L, 1);
+        LuaError(CString(L"Invalid boolean '") + fieldname + L"' field in style");
+        return false;
+    }
+    bool res = !!lua_toboolean(L, -1);
+    lua_pop(L, 1);
+    return res;
+}
+
+void CRenderedTextSubtitle::ParseLuaTable(STSStyle& style)
+{
+    // Check "style" table:
+    if(LuaIsTable(L, L"style"))
+    {
+        // Push table on top
+        lua_getfield(L, -1, "style");
+        
+        if(LuaIsBool(L, L"bold")) style.fontWeight = (LuaGetBool(L, L"bold") ? FW_BOLD : FW_NORMAL);
+
+        // Pop table
+        lua_pop(L, 1);
+    }
+}
+#endif
+
 bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org, bool fAnimate)
 {
     if(!sub) return(false);
@@ -2685,14 +2790,46 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                       : 1000;
         }
 #ifdef _VSMOD // patch m012. add lua animation
+#ifdef _LUA
         else if(cmd == L"lua")
         {
             if(params.GetCount() > 0)
             {
-                CString Func = params[0];
+                CStringA Func(params[0]);
 
+                // Find function =D
+                lua_pushstring(L, Func);
+                lua_rawget(L, LUA_GLOBALSINDEX);
+
+                if(lua_isfunction(L, -1))
+                {
+                    // Push arguments
+                    for(int arg = 1; arg < params.GetCount(); arg++)
+                    {
+                        CStringA Param(params[arg]);
+                        lua_pushstring(L, Param); 
+                    }
+                    if (lua_pcall(L, params.GetCount() - 1, 1, 0) != 0)
+                    {
+                        // error
+                        CString ErrorText = L"Error: ";
+                        CString LuaErrorText(lua_tostring(L, -1));
+
+                        LuaError(ErrorText + LuaErrorText);
+                    }
+                    else
+                    {
+                        // Retrieve result
+                        if (!lua_istable(L, -1))
+                            LuaError(L"Line function must return a table");
+                        else
+                            ParseLuaTable(style);
+                    }
+                }
+                lua_pop(L, 1);
             }
         }
+#endif
 #endif
 #ifdef _VSMOD // patch m005. add some move types
         else if(cmd == L"mover") // {\mover(x1,x2,x2,y2,alp1,alp2,r1,r2,t1,t2)}

@@ -247,6 +247,19 @@ class CRenderedTextSubtitle : public CSimpleTextSubtitle, public ISubPicProvider
     bool ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org, bool fAnimate = false);
     bool ParseHtmlTag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org);
 
+#ifdef _LUA
+    bool LuaIsNumber(lua_State * L, CString fieldname);
+    bool LuaIsTable(lua_State * L, CString fieldname);
+    bool LuaIsBool(lua_State * L, CString fieldname);
+
+    int LuaGetInt(lua_State * L, CString fieldname);
+    double LuaGetFloat(lua_State * L, CString fieldname);
+    CString LuaGetStr(lua_State * L, CString fieldname);
+    bool LuaGetBool(lua_State * L, CString fieldname);
+
+    void ParseLuaTable(STSStyle& style);
+#endif
+
     double CalcAnimation(double dst, double src, bool fAnimate);
 
     CSubtitle* GetSubtitle(int entry);

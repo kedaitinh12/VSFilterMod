@@ -314,11 +314,12 @@ public:
     DWORD*  ind_time; // time array
     DWORD*  ind_pos;  // segment indexes array (start)
 #endif
-
+#ifdef _LUA
     // Lua
     lua_State *   L;
     std::wofstream LuaLog;
     CString       LuaLogName;
+#endif
 #endif
 
     enum EPARCompensationType
@@ -368,9 +369,11 @@ public:
     bool LoadUUEFile(CTextFile* file, CString m_fn);
     bool LoadEfile(CString& img, CString m_fn);
 
+#ifdef _LUA
     // Patch m012. Create lua state
     void ExecLuaFile(CString Filename);
     void LuaError(CString Text);
+#endif
 
     #ifdef INDEXING
     void MakeIndex(int SizeOfSegment);
