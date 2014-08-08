@@ -260,7 +260,7 @@ class CRenderedTextSubtitle : public CSimpleTextSubtitle, public ISubPicProvider
     CString LuaGetStr(lua_State * L, CString fieldname);
     bool LuaGetBool(lua_State * L, CString fieldname);
 
-    void ParseLuaTable(STSStyle& style);
+    void ParseLuaTable(CSubtitle* sub, STSStyle& style);
 #endif
 
     double CalcAnimation(double dst, double src, bool fAnimate);

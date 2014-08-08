@@ -1997,7 +1997,7 @@ bool CRenderedTextSubtitle::LuaGetBool(lua_State * L, CString fieldname)
     return res;
 }
 
-void CRenderedTextSubtitle::ParseLuaTable(STSStyle& style)
+void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
 {
     // Check "style" table:
     if(LuaIsTable(L, L"style"))
@@ -2012,7 +2012,7 @@ void CRenderedTextSubtitle::ParseLuaTable(STSStyle& style)
         if(LuaIsBool(L, L"strikeout")) style.fStrikeOut = LuaGetBool(L, L"strikeout");
 
         // Blur
-        if(LuaIsNumber(L, L"blur")) style.fGaussianBlur = LuaGetFloat(L, L"blur");
+        if(LuaIsNumber(L, L"blur")) style.fGaussianBlurX = style.fGaussianBlurY = LuaGetFloat(L, L"blur");
         if(LuaIsNumber(L, L"be")) style.fBlur = LuaGetFloat(L, L"be");
 
         // Transformation
@@ -2042,6 +2042,31 @@ void CRenderedTextSubtitle::ParseLuaTable(STSStyle& style)
         if(LuaIsNumber(L, L"c3")) style.colors[2] = LuaGetInt(L, L"c3") & 0xFFFFFF;
         if(LuaIsNumber(L, L"c4")) style.colors[3] = LuaGetInt(L, L"c4") & 0xFFFFFF;
 
+        // Pop table
+        lua_pop(L, 1);
+    }
+
+    // Position
+    // Check "pos" table:
+    if(LuaIsTable(L, L"pos"))
+    {
+        // Push table on top
+        lua_getfield(L, -1, "pos");
+        if(LuaIsNumber(L, L"x") && LuaIsNumber(L, L"y"))
+        {
+            int X = LuaGetFloat(L, L"x") * sub->m_scalex * 8;
+            int Y = LuaGetFloat(L, L"y") * sub->m_scaley * 8;
+
+            if(Effect* e = DNew Effect)
+            {
+                e->param[0] = 0; // usual move
+                e->param[1] = e->param[3] = X;
+                e->param[2] = e->param[4] = Y;
+                e->t[0] = e->t[1] = 0;
+
+                sub->m_effects[EF_MOVE] = e;
+            }
+        }
         // Pop table
         lua_pop(L, 1);
     }
@@ -2877,7 +2902,7 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                         else
                         {
                             sub->m_fAnimated = true;
-                            ParseLuaTable(style);
+                            ParseLuaTable(sub, style);
                         }
                     }
                 }
