@@ -125,14 +125,12 @@ void CWord::Paint(CPoint p, CPoint org)
 
         CPoint morg = CPoint((org.x - p.x) * 8, (org.y - p.y) * 8);
 #if defined (_VSMOD) && defined(_LUA)
+        if(m_style.LuaBeforeTransformHandler.GetLength() > 0) CustomTransform(morg, m_style.LuaBeforeTransformHandler);
         if(m_style.LuaCustomTransformHandler.GetLength() > 0)
             CustomTransform(morg, m_style.LuaCustomTransformHandler);
         else
-        {
-        if(m_style.LuaBeforeTransformHandler.GetLength() > 0) CustomTransform(morg, m_style.LuaBeforeTransformHandler);
             Transform(morg);
         if(m_style.LuaAfterTransformHandler.GetLength() > 0) CustomTransform(morg, m_style.LuaAfterTransformHandler);
-        }
 #else
         Transform(CPoint((org.x - p.x) * 8, (org.y - p.y) * 8));
 #endif
