@@ -1380,6 +1380,69 @@ static bool LoadUUEFont(CTextFile* file)
 }
 
 #ifdef _VSMOD
+#ifdef _LUA
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+// CMyLua
+CMyLua::CMyLua()
+{
+
+}
+
+void CMyLua::CreateLuaState()
+{
+    L = luaL_newstate ();
+    // load the libs
+    luaL_openlibs(L);
+}
+
+void CMyLua::LoadLuaFile(CString Filename)
+{
+    CStringA aFilename(Filename);
+    LPSTR pszFilename = aFilename.GetBuffer(Filename.GetLength());
+
+    if(luaL_dofile(L, pszFilename) != 0)
+    {
+        LuaError(CString("Could not load lua: ") + Filename);
+        LuaError(CString(lua_tostring(L, -1)));
+        return;
+    }
+
+    // Find ass_init() function =D
+    lua_pushstring(L, "init");
+    lua_rawget(L, LUA_GLOBALSINDEX);
+
+    LuaError(CString("Lua script loaded: ") + Filename);
+    if(lua_isfunction(L, -1))
+    {
+        if (lua_pcall(L, 0, 0, 0) != 0)
+        {
+            // error
+            CString ErrorText = L"Error: ";
+            CString LuaErrorText(lua_tostring(L, -1));
+
+            LuaError(ErrorText + LuaErrorText);
+        }
+    }
+    lua_pop(L, 1);
+
+    aFilename.ReleaseBuffer();
+}
+
+void CMyLua::LuaError(CString Text)
+{
+    if(!LuaLog) return;
+
+    LPTSTR pszText = Text.GetBuffer(Text.GetLength());
+    try
+    {
+        *LuaLog << pszText << endl;
+    }
+    catch(...) { }
+    Text.ReleaseBuffer();
+}
+#endif
+
 bool CSimpleTextSubtitle::LoadEfile(CString& img, CString m_fn)
 {
     int len = img.GetLength();
@@ -1527,15 +1590,18 @@ static bool OpenSubStationAlpha(CTextFile* file, CSimpleTextSubtitle& ret, int C
             // ������
             CString Filename = buff.Trim();
 
-            ret.ExecLuaFile(Filename);
+            ret.LoadLuaFile(Filename);
         }
         else if(entry == L"lualog")
         {
             // ��� ������
-            ret.LuaLogName = buff.Trim();
+            CString LuaLogName = buff.Trim();
             try
             {
-                ret.LuaLog.open(ret.LuaLogName);
+                std::wofstream * LuaLog = new std::wofstream();
+                LuaLog->open(LuaLogName);
+
+                ret.LuaLog = LuaLog;
             }
             catch(...)
             {
@@ -2084,11 +2150,7 @@ CSimpleTextSubtitle::CSimpleTextSubtitle()
 
 #ifdef _VSMOD
 #ifdef _LUA
-    L = luaL_newstate ();
-    // load the libs
-    luaL_openlibs(L);
-
-    LuaLogName = L"";
+    CreateLuaState();
 #endif
 #ifdef INDEXING
     ind_size = 0;
@@ -2104,7 +2166,12 @@ CSimpleTextSubtitle::~CSimpleTextSubtitle()
 
     try
     {
-        LuaLog.close();
+        if(LuaLog)
+        {
+            (*LuaLog).close();
+            
+            delete LuaLog;
+        }
 
     } catch(...) {}
     #endif
@@ -2142,8 +2209,10 @@ void CSimpleTextSubtitle::Copy(CSimpleTextSubtitle& sts)
     Empty();
 
 #ifdef _VSMOD
+#ifdef _LUA
     L = sts.L;
-    LuaLogName = sts.LuaLogName;
+   LuaLog = sts.LuaLog;
+#endif
 #endif
 
     m_name = sts.m_name;
@@ -2953,56 +3022,6 @@ static int CountLines(CTextFile* f, ULONGLONG from, ULONGLONG to)
     return(n);
 }
 
-
-#ifdef _VSMOD // path m012. Lua animation
-#ifdef _LUA
-void CSimpleTextSubtitle::ExecLuaFile(CString Filename)
-{
-    CStringA aFilename(Filename);
-    LPSTR pszFilename = aFilename.GetBuffer(Filename.GetLength());
-
-    if(luaL_dofile(L, pszFilename) != 0)
-    {
-        LuaError(CString("Could not load lua: ") + Filename);
-        LuaError(CString(lua_tostring(L, -1)));
-        return;
-    }
-
-    // Find ass_init() function =D
-    lua_pushstring(L, "init");
-    lua_rawget(L, LUA_GLOBALSINDEX);
-
-    LuaError(CString("Lua script loaded: ") + Filename);
-    if(lua_isfunction(L, -1))
-    {
-        if (lua_pcall(L, 0, 0, 0) != 0)
-        {
-            // error
-            CString ErrorText = L"Error: ";
-            CString LuaErrorText(lua_tostring(L, -1));
-
-            LuaError(ErrorText + LuaErrorText);
-        }
-    }
-    lua_pop(L, 1);
-
-    aFilename.ReleaseBuffer();
-}
-
-void CSimpleTextSubtitle::LuaError(CString Text)
-{
-    if(LuaLogName.GetLength() == 0) return;
-
-    LPTSTR pszText = Text.GetBuffer(Text.GetLength());
-    try
-    {
-        LuaLog << pszText << endl;
-    }
-    catch(...) { }
-    Text.ReleaseBuffer();
-}
-#endif
-#endif
 
 bool CSimpleTextSubtitle::Open(CTextFile* f, int CharSet, CString name)
 {

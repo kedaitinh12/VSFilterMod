@@ -155,6 +155,68 @@ void CWord::Paint(CPoint p, CPoint org)
 
 #ifdef _VSMOD
 #include <emmintrin.h>
+
+#ifdef _LUA
+void CWord::BeforeTransform(CPoint org)
+{
+    if(m_style.LuaBeforeTransformHandler.GetLength() == 0) return;
+
+    CStringA Func(m_style.LuaBeforeTransformHandler);
+    // Calculate size:
+    int minx = INT_MAX, miny = INT_MAX, maxx = -INT_MAX, maxy = -INT_MAX;
+
+    for(int i = 0; i < mPathPoints; i++)
+    {
+        if(minx > mpPathPoints[i].x) minx = mpPathPoints[i].x;
+        if(miny > mpPathPoints[i].y) miny = mpPathPoints[i].y;
+        if(maxx < mpPathPoints[i].x) maxx = mpPathPoints[i].x;
+        if(maxy < mpPathPoints[i].y) maxy = mpPathPoints[i].y;
+    }
+
+    int xsz = max(maxx - minx, 0);
+    int ysz = max(maxy - miny, 0);
+
+    for(ptrdiff_t i = 0; i < mPathPoints; i++)
+    {
+        double x, y, z, xx, yy, zz;
+
+        x = mpPathPoints[i].x;
+        y = mpPathPoints[i].y;
+
+        // Find function =D
+        lua_pushstring(L, Func);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+
+        // Create line table
+        lua_newtable(L);
+        //LuaAddIntegerField(L, "time", m_time);
+        //LuaAddIntegerField(L, "length", m_delay);
+
+        if (lua_pcall(L, 1, 1, 0) != 0)
+        {
+	        // error
+	        CString ErrorText = L"Error: ";
+	        CString LuaErrorText(lua_tostring(L, -1));
+
+	        LuaError(ErrorText + LuaErrorText);
+        }
+        else
+        {
+	        // Retrieve result
+	        if (!lua_istable(L, -1))
+		        LuaError(L"Line function must return a table");
+	        else
+	        {
+		        //ParseLuaTable(sub, style);
+	        }
+        }
+        lua_pop(L, 1);
+
+        // mpPathPoints[i].x = 
+        // mpPathPoints[i].y =
+    }
+}
+#endif
 #endif
 
 void CWord::Transform(CPoint org)
@@ -1937,6 +1999,25 @@ bool CRenderedTextSubtitle::LuaIsBool(lua_State * L, CString fieldname)
     return Result;
 }
 
+bool CRenderedTextSubtitle::LuaIsString(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_isstring(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+
+bool CRenderedTextSubtitle::LuaIsFunction(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_isfunction(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
 bool CRenderedTextSubtitle::LuaHasFunction(lua_State * L, CString funcname)
 {
     CStringA funcnameA(funcname);
@@ -1977,7 +2058,7 @@ double CRenderedTextSubtitle::LuaGetFloat(lua_State * L, CString fieldname)
     return res;
 }
 
-CString CRenderedTextSubtitle::LuaGetStr(lua_State * L, CString fieldname)
+CString CRenderedTextSubtitle::LuaGetString(lua_State * L, CString fieldname)
 {
     CStringA fieldnameA(fieldname);
     lua_getfield(L, -1, fieldnameA);
@@ -2005,6 +2086,20 @@ bool CRenderedTextSubtitle::LuaGetBool(lua_State * L, CString fieldname)
     bool res = !!lua_toboolean(L, -1);
     lua_pop(L, 1);
     return res;
+}
+
+CString CRenderedTextSubtitle::CheckLuaHandler(CString func)
+{
+    // Custom functions
+    // Check "pos" table:
+    if(LuaIsString(L, func))
+    {
+        CString fname = LuaGetString(L, func);
+
+        if(LuaHasFunction(L, fname)) return fname;
+    }
+
+    return L"";
 }
 
 void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
@@ -2081,6 +2176,8 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
         // Pop table
         lua_pop(L, 1);
     }
+    // Custom modify points before transform
+    style.LuaBeforeTransformHandler = CheckLuaHandler(L"beforetransform");
 }
 #endif
 

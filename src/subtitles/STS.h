@@ -33,6 +33,22 @@
 
 #include <iostream>
 #include <fstream>
+
+#ifdef _LUA
+class CMyLua
+{
+public:
+    lua_State * L;
+    std::wofstream * LuaLog;
+
+    CMyLua();
+
+    void CreateLuaState();
+    void LoadLuaFile(CString File);
+
+    void LuaError(CString Text);
+};
+#endif
 #endif
 
 #define div_255_fast(x) (((x) + 1 + (((x) + 1) >> 8)) >> 8)
@@ -209,6 +225,10 @@ public:
     bool mod_ortho;
     // vpatch v003. blending mode
     MOD_BLEND mod_blendMode;
+
+#ifdef _LUA
+    CString LuaBeforeTransformHandler;
+#endif
 #endif
 
     STSStyle();
@@ -280,7 +300,11 @@ public:
     }
 };
 
+#if defined(_VSMOD) && defined(_LUA)
+class CSimpleTextSubtitle : public CAtlArray<STSEntry>, public CMyLua
+#else
 class CSimpleTextSubtitle : public CAtlArray<STSEntry>
+#endif
 {
     friend class CSubtitleEditorDlg;
 
@@ -313,12 +337,6 @@ public:
     DWORD   ind_size; // size of array
     DWORD*  ind_time; // time array
     DWORD*  ind_pos;  // segment indexes array (start)
-#endif
-#ifdef _LUA
-    // Lua
-    lua_State *   L;
-    std::wofstream LuaLog;
-    CString       LuaLogName;
 #endif
 #endif
 
@@ -368,12 +386,6 @@ public:
 #ifdef _VSMOD // load embedded images
     bool LoadUUEFile(CTextFile* file, CString m_fn);
     bool LoadEfile(CString& img, CString m_fn);
-
-#ifdef _LUA
-    // Patch m012. Create lua state
-    void ExecLuaFile(CString Filename);
-    void LuaError(CString Text);
-#endif
 
     #ifdef INDEXING
     void MakeIndex(int SizeOfSegment);

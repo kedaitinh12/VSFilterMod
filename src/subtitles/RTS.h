@@ -35,10 +35,14 @@ public:
 
 class CPolygon;
 
-class CWord : public Rasterizer
+class CWord : public Rasterizer, public CMyLua
 {
     bool m_fDrawn;
     CPoint m_p;
+
+    #ifdef _LUA
+    void BeforeTransform(CPoint org);
+    #endif
 
     void Transform(CPoint org);
 
@@ -247,21 +251,27 @@ class CRenderedTextSubtitle : public CSimpleTextSubtitle, public ISubPicProvider
     bool ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org, bool fAnimate = false);
     bool ParseHtmlTag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org);
 
+#ifdef _VSMOD
 #ifdef _LUA
     void LuaAddIntegerField(lua_State * L, CStringA Field, int Value);
     void LuaAddNumberField(lua_State * L, CStringA Field, double Value);
 
     bool LuaHasFunction(lua_State * L, CString funcname);
+    CString CheckLuaHandler(CString func);
+
+    bool LuaIsFunction(lua_State * L, CString fieldname);
     bool LuaIsNumber(lua_State * L, CString fieldname);
+    bool LuaIsString(lua_State * L, CString fieldname);
     bool LuaIsTable(lua_State * L, CString fieldname);
     bool LuaIsBool(lua_State * L, CString fieldname);
 
     int LuaGetInt(lua_State * L, CString fieldname);
     double LuaGetFloat(lua_State * L, CString fieldname);
-    CString LuaGetStr(lua_State * L, CString fieldname);
+    CString LuaGetString(lua_State * L, CString fieldname);
     bool LuaGetBool(lua_State * L, CString fieldname);
 
     void ParseLuaTable(CSubtitle* sub, STSStyle& style);
+#endif
 #endif
 
     double CalcAnimation(double dst, double src, bool fAnimate);
