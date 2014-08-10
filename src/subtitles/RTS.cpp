@@ -25,12 +25,10 @@
 #include <time.h>
 #include "RTS.h"
 
-#ifdef _VSMOD
-#ifdef _LUA
+#if defined (_VSMOD) && defined(_LUA)
 // path m012. Lua animation
 #include <lua.h>
 #include <lualib.h>
-#endif
 #endif
 
 // WARNING: this isn't very thread safe, use only one RTS a time.
@@ -125,7 +123,19 @@ void CWord::Paint(CPoint p, CPoint org)
     {
         if(!CreatePath()) return;
 
+        CPoint morg = CPoint((org.x - p.x) * 8, (org.y - p.y) * 8);
+#if defined (_VSMOD) && defined(_LUA)
+        if(m_style.LuaCustomTransformHandler.GetLength() > 0)
+            CustomTransform(morg, m_style.LuaCustomTransformHandler);
+        else
+        {
+        if(m_style.LuaBeforeTransformHandler.GetLength() > 0) CustomTransform(morg, m_style.LuaBeforeTransformHandler);
+            Transform(morg);
+        if(m_style.LuaAfterTransformHandler.GetLength() > 0) CustomTransform(morg, m_style.LuaAfterTransformHandler);
+        }
+#else
         Transform(CPoint((org.x - p.x) * 8, (org.y - p.y) * 8));
+#endif
 
         if(!ScanConvert()) return;
 
@@ -157,11 +167,9 @@ void CWord::Paint(CPoint p, CPoint org)
 #include <emmintrin.h>
 
 #ifdef _LUA
-void CWord::BeforeTransform(CPoint org)
+void CWord::CustomTransform(CPoint org, CString F)
 {
-    if(m_style.LuaBeforeTransformHandler.GetLength() == 0) return;
-
-    CStringA Func(m_style.LuaBeforeTransformHandler);
+    CStringA Func(F);
     // Calculate size:
     int minx = INT_MAX, miny = INT_MAX, maxx = -INT_MAX, maxy = -INT_MAX;
 
@@ -189,8 +197,42 @@ void CWord::BeforeTransform(CPoint org)
 
         // Create line table
         lua_newtable(L);
-        //LuaAddIntegerField(L, "time", m_time);
-        //LuaAddIntegerField(L, "length", m_delay);
+
+        // Geometry
+        LuaAddNumberField(L, "minx", minx);
+        LuaAddNumberField(L, "maxx", maxx);
+        LuaAddNumberField(L, "miny", miny);
+        LuaAddNumberField(L, "maxy", maxy);
+
+        // Style
+        LuaAddNumberField(L, "frx", m_style.fontAngleX);
+        LuaAddNumberField(L, "fry", m_style.fontAngleY);
+        LuaAddNumberField(L, "frz", m_style.fontAngleZ);
+
+        LuaAddNumberField(L, "fscx", m_style.fontScaleX);
+        LuaAddNumberField(L, "fscy", m_style.fontScaleY);
+
+        LuaAddNumberField(L, "fax", m_style.fontShiftX);
+        LuaAddNumberField(L, "fay", m_style.fontShiftY);
+
+        // Size
+        lua_newtable(L);
+        LuaAddNumberField(L, "w", xsz);
+        LuaAddNumberField(L, "h", ysz);
+        lua_setfield(L, -2, "size");
+
+        // Pos
+        lua_newtable(L);
+        LuaAddNumberField(L, "x", x);
+        LuaAddNumberField(L, "y", y);
+        LuaAddNumberField(L, "z", m_style.mod_z);
+        lua_setfield(L, -2, "pos");
+
+        // Org table
+        lua_newtable(L);
+        LuaAddNumberField(L, "x", org.x);
+        LuaAddNumberField(L, "y", org.y);
+        lua_setfield(L, -2, "org");
 
         if (lua_pcall(L, 1, 1, 0) != 0)
         {
@@ -207,13 +249,11 @@ void CWord::BeforeTransform(CPoint org)
 		        LuaError(L"Line function must return a table");
 	        else
 	        {
-		        //ParseLuaTable(sub, style);
+                if(LuaIsNumber(L, L"x")) mpPathPoints[i].x = LuaGetFloat(L, L"x");
+                if(LuaIsNumber(L, L"y")) mpPathPoints[i].y = LuaGetFloat(L, L"y");
 	        }
         }
         lua_pop(L, 1);
-
-        // mpPathPoints[i].x = 
-        // mpPathPoints[i].y =
     }
 }
 #endif
@@ -684,7 +724,12 @@ CText::CText(STSStyle& style, CStringW str, int ktype, int kstart, int kend, dou
 
 CWord* CText::Copy()
 {
-    return(DNew CText(*this));
+    CWord* T = DNew CText(*this);
+#if defined(_VSMOD) && defined(_LUA)
+    T->L = L;
+    T->LuaLog = LuaLog;
+#endif
+    return T;
 }
 
 bool CText::Append(CWord* w)
@@ -757,7 +802,12 @@ CPolygon::~CPolygon()
 
 CWord* CPolygon::Copy()
 {
-    return(DNew CPolygon(m_style, m_str, m_ktype, m_kstart, m_kend, m_scalex, m_scaley, m_baseline));
+    CWord* T = DNew CPolygon(m_style, m_str, m_ktype, m_kstart, m_kend, m_scalex, m_scaley, m_baseline);
+#if defined(_VSMOD) && defined(_LUA)
+    T->L = L;
+    T->LuaLog = LuaLog;
+#endif
+    return T;
 }
 
 bool CPolygon::Append(CWord* w)
@@ -1434,6 +1484,10 @@ CLine* CSubtitle::GetNextLine(POSITION& pos, int maxwidth)
     CLine* ret = DNew CLine();
     if(!ret) return(NULL);
 
+#if defined(_VSMOD) && defined(_LUA)
+
+#endif
+
     ret->m_width = ret->m_ascent = ret->m_descent = ret->m_borderX = ret->m_borderY = 0;
 
     maxwidth = GetWrapWidth(pos, maxwidth);
@@ -1920,6 +1974,10 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
         {
             if(CWord* w = DNew CText(style, str.Mid(i, j - i), m_ktype, m_kstart, m_kend, sub->m_scalex, sub->m_scaley))
             {
+#if defined (_VSMOD) && defined(_LUA)
+                w->L = L;
+                w->LuaLog = LuaLog;
+#endif
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
             }
@@ -1929,6 +1987,10 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
         {
             if(CWord* w = DNew CText(style, CStringW(), m_ktype, m_kstart, m_kend, sub->m_scalex, sub->m_scaley))
             {
+#if defined (_VSMOD) && defined(_LUA)
+                w->L = L;
+                w->LuaLog = LuaLog;
+#endif
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
             }
@@ -1937,6 +1999,10 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
         {
             if(CWord* w = DNew CText(style, CStringW(c), m_ktype, m_kstart, m_kend, sub->m_scalex, sub->m_scaley))
             {
+#if defined (_VSMOD) && defined(_LUA)
+                w->L = L;
+                w->LuaLog = LuaLog;
+#endif
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
             }
@@ -1954,154 +2020,16 @@ void CRenderedTextSubtitle::ParsePolygon(CSubtitle* sub, CStringW str, STSStyle&
 
     if(CWord* w = DNew CPolygon(style, str, m_ktype, m_kstart, m_kend, sub->m_scalex / (1 << (m_nPolygon - 1)), sub->m_scaley / (1 << (m_nPolygon - 1)), m_polygonBaselineOffset))
     {
+#if defined (_VSMOD) && defined(_LUA)
+        w->L = L;
+        w->LuaLog = LuaLog;
+#endif
         sub->m_words.AddTail(w);
         m_kstart = m_kend;
     }
 }
 
 #ifdef _LUA
-void CRenderedTextSubtitle::LuaAddIntegerField(lua_State * L, CStringA Field, int Value)
-{
-    lua_pushinteger(L, Value);
-    lua_setfield(L, -2, Field);
-}
-
-void CRenderedTextSubtitle::LuaAddNumberField(lua_State * L, CStringA Field, double Value)
-{
-    lua_pushnumber(L, Value);
-    lua_setfield(L, -2, Field);
-}
-
-bool CRenderedTextSubtitle::LuaIsNumber(lua_State * L, CString fieldname)
-{
-    CStringA fieldnameA(fieldname);
-    lua_getfield(L, -1, fieldnameA);
-    bool Result = lua_isnumber(L, -1);
-    lua_pop(L, 1);
-    return Result;
-}
-
-bool CRenderedTextSubtitle::LuaIsTable(lua_State * L, CString fieldname)
-{
-    CStringA fieldnameA(fieldname);
-    lua_getfield(L, -1, fieldnameA);
-    bool Result = lua_istable(L, -1);
-    lua_pop(L, 1);
-    return Result;
-}
-
-bool CRenderedTextSubtitle::LuaIsBool(lua_State * L, CString fieldname)
-{
-    CStringA fieldnameA(fieldname);
-    lua_getfield(L, -1, fieldnameA);
-    bool Result = lua_isboolean(L, -1);
-    lua_pop(L, 1);
-    return Result;
-}
-
-bool CRenderedTextSubtitle::LuaIsString(lua_State * L, CString fieldname)
-{
-    CStringA fieldnameA(fieldname);
-    lua_getfield(L, -1, fieldnameA);
-    bool Result = lua_isstring(L, -1);
-    lua_pop(L, 1);
-    return Result;
-}
-
-
-bool CRenderedTextSubtitle::LuaIsFunction(lua_State * L, CString fieldname)
-{
-    CStringA fieldnameA(fieldname);
-    lua_getfield(L, -1, fieldnameA);
-    bool Result = lua_isfunction(L, -1);
-    lua_pop(L, 1);
-    return Result;
-}
-
-bool CRenderedTextSubtitle::LuaHasFunction(lua_State * L, CString funcname)
-{
-    CStringA funcnameA(funcname);
-    lua_pushstring(L, funcnameA);
-    lua_rawget(L, LUA_GLOBALSINDEX);
-    bool Result = lua_isfunction(L, -1);
-    lua_pop(L, 1);
-    return Result;
-}
-
-int CRenderedTextSubtitle::LuaGetInt(lua_State * L, CString fieldname)
-{
-    CStringA fieldnameA(fieldname);
-    lua_getfield(L, -1, fieldnameA);
-    if(!lua_isnumber(L, -1))
-    {
-        lua_pop(L, 1);
-        LuaError(CString(L"Invalid number '") + fieldname + L"' field in style");
-        return 0;
-    }
-    int res = (int)lua_tointeger(L, -1);
-    lua_pop(L, 1);
-    return res;
-}
-
-double CRenderedTextSubtitle::LuaGetFloat(lua_State * L, CString fieldname)
-{
-    CStringA fieldnameA(fieldname);
-    lua_getfield(L, -1, fieldnameA);
-    if(!lua_isnumber(L, -1))
-    {
-        LuaError(CString(L"Invalid number '") + fieldname + L"' field in style");
-        lua_pop(L, 1);
-        return 0;
-    }
-    double res = lua_tonumber(L, -1);
-    lua_pop(L, 1);
-    return res;
-}
-
-CString CRenderedTextSubtitle::LuaGetString(lua_State * L, CString fieldname)
-{
-    CStringA fieldnameA(fieldname);
-    lua_getfield(L, -1, fieldnameA);
-    if(!lua_isstring(L, -1))
-    {
-        LuaError(CString(L"Invalid string '") + fieldname + L"' field in style");
-        lua_pop(L, 1);
-        return L"";
-    }
-    CString res(lua_tostring(L, -1));
-    lua_pop(L, 1);
-    return res;
-}
-
-bool CRenderedTextSubtitle::LuaGetBool(lua_State * L, CString fieldname)
-{
-    CStringA fieldnameA(fieldname);
-    lua_getfield(L, -1, fieldnameA);
-    if(!lua_isboolean(L, -1))
-    {
-        lua_pop(L, 1);
-        LuaError(CString(L"Invalid boolean '") + fieldname + L"' field in style");
-        return false;
-    }
-    bool res = !!lua_toboolean(L, -1);
-    lua_pop(L, 1);
-    return res;
-}
-
-CString CRenderedTextSubtitle::CheckLuaHandler(CString func)
-{
-    // Custom functions
-    // Check "pos" table:
-    if(LuaIsString(L, func))
-    {
-        CString fname = LuaGetString(L, func);
-
-        if(LuaHasFunction(L, fname)) return fname;
-    }
-
-    return L"";
-}
-
 void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
 {
     // Check "style" table:
@@ -2127,14 +2055,17 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
         if(LuaIsNumber(L, L"frz")) style.fontAngleZ = LuaGetFloat(L, L"frz");
         if(LuaIsNumber(L, L"fax")) style.fontShiftX = LuaGetFloat(L, L"fax");
         if(LuaIsNumber(L, L"fay")) style.fontShiftY = LuaGetFloat(L, L"fay");
-        if(LuaIsNumber(L, L"fsx")) style.fontScaleX = LuaGetFloat(L, L"fsx");
-        if(LuaIsNumber(L, L"fsy")) style.fontScaleY = LuaGetFloat(L, L"fsy");
+        if(LuaIsNumber(L, L"fscx")) style.fontScaleX = LuaGetFloat(L, L"fscx");
+        if(LuaIsNumber(L, L"fscy")) style.fontScaleY = LuaGetFloat(L, L"fscy");
+        if(LuaIsNumber(L, L"fsc")) style.fontScaleX = style.fontScaleY = LuaGetFloat(L, L"fsc");
 
         // Shadow and border
         if(LuaIsNumber(L, L"shadx")) style.shadowDepthX = LuaGetFloat(L, L"shadx");
         if(LuaIsNumber(L, L"shady")) style.shadowDepthY = LuaGetFloat(L, L"shady");
+        if(LuaIsNumber(L, L"shad")) style.shadowDepthX = style.shadowDepthY = LuaGetFloat(L, L"shad");
         if(LuaIsNumber(L, L"bordx")) style.outlineWidthX = LuaGetFloat(L, L"bordx");
         if(LuaIsNumber(L, L"bordy")) style.outlineWidthY = LuaGetFloat(L, L"bordy");
+        if(LuaIsNumber(L, L"bord")) style.outlineWidthX = style.outlineWidthY = LuaGetFloat(L, L"bord");
 
         // Alphas
         if(LuaIsNumber(L, L"a1")) style.alpha[0] = LuaGetInt(L, L"a1") & 0xFF;
@@ -2178,6 +2109,9 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
     }
     // Custom modify points before transform
     style.LuaBeforeTransformHandler = CheckLuaHandler(L"beforetransform");
+    style.LuaAfterTransformHandler = CheckLuaHandler(L"aftertransform");
+    style.LuaCustomTransformHandler = CheckLuaHandler(L"customtransform");
+
 }
 #endif
 
@@ -3624,6 +3558,11 @@ CSubtitle* CRenderedTextSubtitle::GetSubtitle(int entry)
 
     sub = DNew CSubtitle();
     if(!sub) return(NULL);
+
+#if defined (_VSMOD) && defined(_LUA)
+    sub->L = L;
+    sub->LuaLog = LuaLog;
+#endif
 
     CStringW str = GetStrW(entry, true);
 

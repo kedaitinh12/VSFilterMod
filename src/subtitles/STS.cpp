@@ -1441,6 +1441,147 @@ void CMyLua::LuaError(CString Text)
     catch(...) { }
     Text.ReleaseBuffer();
 }
+
+void CMyLua::LuaAddIntegerField(lua_State * L, CStringA Field, int Value)
+{
+    lua_pushinteger(L, Value);
+    lua_setfield(L, -2, Field);
+}
+
+void CMyLua::LuaAddNumberField(lua_State * L, CStringA Field, double Value)
+{
+    lua_pushnumber(L, Value);
+    lua_setfield(L, -2, Field);
+}
+
+bool CMyLua::LuaIsNumber(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_isnumber(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+bool CMyLua::LuaIsTable(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_istable(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+bool CMyLua::LuaIsBool(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_isboolean(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+bool CMyLua::LuaIsString(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_isstring(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+
+bool CMyLua::LuaIsFunction(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    bool Result = lua_isfunction(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+bool CMyLua::LuaHasFunction(lua_State * L, CString funcname)
+{
+    CStringA funcnameA(funcname);
+    lua_pushstring(L, funcnameA);
+    lua_rawget(L, LUA_GLOBALSINDEX);
+    bool Result = lua_isfunction(L, -1);
+    lua_pop(L, 1);
+    return Result;
+}
+
+int CMyLua::LuaGetInt(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    if(!lua_isnumber(L, -1))
+    {
+        lua_pop(L, 1);
+        LuaError(CString(L"Invalid number '") + fieldname + L"' field in style");
+        return 0;
+    }
+    int res = (int)lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    return res;
+}
+
+double CMyLua::LuaGetFloat(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    if(!lua_isnumber(L, -1))
+    {
+        LuaError(CString(L"Invalid number '") + fieldname + L"' field in style");
+        lua_pop(L, 1);
+        return 0;
+    }
+    double res = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    return res;
+}
+
+CString CMyLua::LuaGetString(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    if(!lua_isstring(L, -1))
+    {
+        LuaError(CString(L"Invalid string '") + fieldname + L"' field in style");
+        lua_pop(L, 1);
+        return L"";
+    }
+    CString res(lua_tostring(L, -1));
+    lua_pop(L, 1);
+    return res;
+}
+
+bool CMyLua::LuaGetBool(lua_State * L, CString fieldname)
+{
+    CStringA fieldnameA(fieldname);
+    lua_getfield(L, -1, fieldnameA);
+    if(!lua_isboolean(L, -1))
+    {
+        lua_pop(L, 1);
+        LuaError(CString(L"Invalid boolean '") + fieldname + L"' field in style");
+        return false;
+    }
+    bool res = !!lua_toboolean(L, -1);
+    lua_pop(L, 1);
+    return res;
+}
+
+CString CMyLua::CheckLuaHandler(CString func)
+{
+    // Custom functions
+    if(LuaIsString(L, func))
+    {
+        CString fname(LuaGetString(L, func));
+
+        if(LuaHasFunction(L, fname)) return fname;
+    }
+
+    return L"";
+}
 #endif
 
 bool CSimpleTextSubtitle::LoadEfile(CString& img, CString m_fn)
@@ -3417,6 +3558,12 @@ void STSStyle::SetDefault()
     mod_ortho = false;
     // vpatch v003. blending mode
     mod_blendMode = BLEND_NORMAL;
+
+#ifdef _LUA
+    LuaBeforeTransformHandler = L"";
+    LuaAfterTransformHandler = L"";
+    LuaCustomTransformHandler = L"";
+#endif
 #endif
 }
 
@@ -3530,6 +3677,11 @@ void STSStyle::mod_CopyStyleFrom(STSStyle& s)
     mod_ortho = s.mod_ortho;
     // vpatch v003. blending mode
     mod_blendMode = s.mod_blendMode;
+#ifdef _LUA
+    LuaBeforeTransformHandler = s.LuaBeforeTransformHandler;
+    LuaAfterTransformHandler = s.LuaAfterTransformHandler;
+    LuaCustomTransformHandler = s.LuaCustomTransformHandler;
+#endif
     // font
     charSet = s.charSet;
     fontName = s.fontName;

@@ -43,6 +43,23 @@ public:
 
     CMyLua();
 
+    void LuaAddIntegerField(lua_State * L, CStringA Field, int Value);
+    void LuaAddNumberField(lua_State * L, CStringA Field, double Value);
+
+    bool LuaHasFunction(lua_State * L, CString funcname);
+    CString CheckLuaHandler(CString func);
+
+    bool LuaIsFunction(lua_State * L, CString fieldname);
+    bool LuaIsNumber(lua_State * L, CString fieldname);
+    bool LuaIsString(lua_State * L, CString fieldname);
+    bool LuaIsTable(lua_State * L, CString fieldname);
+    bool LuaIsBool(lua_State * L, CString fieldname);
+
+    int LuaGetInt(lua_State * L, CString fieldname);
+    double LuaGetFloat(lua_State * L, CString fieldname);
+    CString LuaGetString(lua_State * L, CString fieldname);
+    bool LuaGetBool(lua_State * L, CString fieldname);
+
     void CreateLuaState();
     void LoadLuaFile(CString File);
 
@@ -227,7 +244,9 @@ public:
     MOD_BLEND mod_blendMode;
 
 #ifdef _LUA
-    CString LuaBeforeTransformHandler;
+    CString        LuaBeforeTransformHandler;
+    CString        LuaAfterTransformHandler;
+    CString        LuaCustomTransformHandler;
 #endif
 #endif
 

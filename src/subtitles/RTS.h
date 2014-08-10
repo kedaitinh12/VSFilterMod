@@ -35,13 +35,17 @@ public:
 
 class CPolygon;
 
+#if defined (_VSMOD) && defined(_LUA)
 class CWord : public Rasterizer, public CMyLua
+#else
+class CWord : public Rasterizer
+#endif
 {
     bool m_fDrawn;
     CPoint m_p;
-
-    #ifdef _LUA
-    void BeforeTransform(CPoint org);
+    
+    #if defined (_VSMOD) && defined(_LUA)
+    void CustomTransform(CPoint org, CString F);
     #endif
 
     void Transform(CPoint org);
@@ -173,7 +177,11 @@ public:
     int t[4];
 };
 
+#if defined (_VSMOD) && defined(_LUA)
+class CSubtitle : public CAtlList<CLine*>, public CMyLua
+#else
 class CSubtitle : public CAtlList<CLine*>
+#endif
 {
     int GetFullWidth();
     int GetFullLineWidth(POSITION pos);
@@ -253,23 +261,6 @@ class CRenderedTextSubtitle : public CSimpleTextSubtitle, public ISubPicProvider
 
 #ifdef _VSMOD
 #ifdef _LUA
-    void LuaAddIntegerField(lua_State * L, CStringA Field, int Value);
-    void LuaAddNumberField(lua_State * L, CStringA Field, double Value);
-
-    bool LuaHasFunction(lua_State * L, CString funcname);
-    CString CheckLuaHandler(CString func);
-
-    bool LuaIsFunction(lua_State * L, CString fieldname);
-    bool LuaIsNumber(lua_State * L, CString fieldname);
-    bool LuaIsString(lua_State * L, CString fieldname);
-    bool LuaIsTable(lua_State * L, CString fieldname);
-    bool LuaIsBool(lua_State * L, CString fieldname);
-
-    int LuaGetInt(lua_State * L, CString fieldname);
-    double LuaGetFloat(lua_State * L, CString fieldname);
-    CString LuaGetString(lua_State * L, CString fieldname);
-    bool LuaGetBool(lua_State * L, CString fieldname);
-
     void ParseLuaTable(CSubtitle* sub, STSStyle& style);
 #endif
 #endif
