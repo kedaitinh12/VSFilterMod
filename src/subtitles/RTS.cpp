@@ -115,7 +115,11 @@ bool CWord::Append(CWord* w)
     return(true);
 }
 
+#if defined (_VSMOD) && defined(_LUA)
+void CWord::Paint(CPoint p, CPoint org, int Layer)
+#else
 void CWord::Paint(CPoint p, CPoint org)
+#endif
 {
     if(!m_str) return;
 
@@ -125,12 +129,12 @@ void CWord::Paint(CPoint p, CPoint org)
 
         CPoint morg = CPoint((org.x - p.x) * 8, (org.y - p.y) * 8);
 #if defined (_VSMOD) && defined(_LUA)
-        if(m_style.LuaBeforeTransformHandler.GetLength() > 0) CustomTransform(morg, m_style.LuaBeforeTransformHandler);
+        if(m_style.LuaBeforeTransformHandler.GetLength() > 0) CustomTransform(morg, m_style.LuaBeforeTransformHandler, Layer);
         if(m_style.LuaCustomTransformHandler.GetLength() > 0)
-            CustomTransform(morg, m_style.LuaCustomTransformHandler);
+            CustomTransform(morg, m_style.LuaCustomTransformHandler, Layer);
         else
             Transform(morg);
-        if(m_style.LuaAfterTransformHandler.GetLength() > 0) CustomTransform(morg, m_style.LuaAfterTransformHandler);
+        if(m_style.LuaAfterTransformHandler.GetLength() > 0) CustomTransform(morg, m_style.LuaAfterTransformHandler, Layer);
 #else
         Transform(CPoint((org.x - p.x) * 8, (org.y - p.y) * 8));
 #endif
@@ -158,14 +162,18 @@ void CWord::Paint(CPoint p, CPoint org)
     m_p = p;
 
     if(m_pOpaqueBox)
+#if defined (_VSMOD) && defined(_LUA)
+        m_pOpaqueBox->Paint(p, org, 5);
+#else
         m_pOpaqueBox->Paint(p, org);
+#endif
 }
 
 #ifdef _VSMOD
 #include <emmintrin.h>
 
 #ifdef _LUA
-void CWord::CustomTransform(CPoint org, CString F)
+void CWord::CustomTransform(CPoint org, CString F, int Layer)
 {
     CStringA Func(F);
     // Calculate size:
@@ -195,6 +203,11 @@ void CWord::CustomTransform(CPoint org, CString F)
 
         // Create line table
         lua_newtable(L);
+
+        // 1 - text, 3 - outline, 4 - shadow, 5 - opaque box, 6 - clip
+        LuaAddNumberField(L, "layer", Layer);
+        // ID
+        LuaAddNumberField(L, "id", m_entry);
 
         // Geometry
         LuaAddNumberField(L, "minx", minx);
@@ -231,6 +244,17 @@ void CWord::CustomTransform(CPoint org, CString F)
         LuaAddNumberField(L, "x", org.x);
         LuaAddNumberField(L, "y", org.y);
         lua_setfield(L, -2, "org");
+
+        // User table
+        {
+            CStringA index;
+            index.Format("sub_%d", m_entry);
+            lua_getglobal(L, index);
+            if(lua_istable(L, -1))
+                lua_setfield(L, -2, "user");
+            else
+                lua_pop(L, 1);
+        }
 
         if (lua_pcall(L, 1, 1, 0) != 0)
         {
@@ -1016,8 +1040,11 @@ CClipper::CClipper(CStringW str, CSize size, double scalex, double scaley, bool 
 
     memset(m_pAlphaMask, 0, size.cx * size.cy);
 
+#if defined (_VSMOD) && defined(_LUA)
+    Paint(CPoint(0, 0), CPoint(0, 0), 6);
+#else
     Paint(CPoint(0, 0), CPoint(0, 0));
-
+#endif
     int w = mOverlayWidth, h = mOverlayHeight;
 
     int x = (mOffsetX + 4) >> 3, y = (mOffsetY + 4) >> 3;
@@ -1180,8 +1207,11 @@ CRect CLine::PaintShadow(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPo
             w->m_style.mod_grad.subpixy = y & 7;
             w->m_style.mod_grad.fadalpha = alpha;
 #endif
+#if defined (_VSMOD) && defined(_LUA)
+            w->Paint(CPoint(x, y), org, 4);
+#else
             w->Paint(CPoint(x, y), org);
-
+#endif
             if(w->m_style.borderStyle == 0)
             {
 #ifdef _VSMOD // patch m004. gradient colors
@@ -1251,7 +1281,11 @@ CRect CLine::PaintOutline(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CP
             w->m_style.mod_grad.fadalpha = alpha;
 #endif
 
+#if defined (_VSMOD) && defined(_LUA)
+            w->Paint(CPoint(x, y), org, 3);
+#else
             w->Paint(CPoint(x, y), org);
+#endif
 
             if(w->m_style.borderStyle == 0)
             {
@@ -1366,7 +1400,11 @@ CRect CLine::PaintBody(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPoin
         w->m_style.mod_grad.fadalpha = alpha;
 #endif
 
-        w->Paint(CPoint(x, y), org);
+#if defined (_VSMOD) && defined(_LUA)
+            w->Paint(CPoint(x, y), org, 1);
+#else
+            w->Paint(CPoint(x, y), org);
+#endif
 
         sw[3] = (int)(w->m_style.outlineWidthX + t * w->getOverlayWidth() + t * bluradjust) >> 3;
 
@@ -1975,6 +2013,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
 #if defined (_VSMOD) && defined(_LUA)
                 w->L = L;
                 w->LuaLog = LuaLog;
+                w->m_entry = m_entry;
 #endif
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
@@ -1988,6 +2027,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
 #if defined (_VSMOD) && defined(_LUA)
                 w->L = L;
                 w->LuaLog = LuaLog;
+                w->m_entry = m_entry;
 #endif
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
@@ -2000,6 +2040,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
 #if defined (_VSMOD) && defined(_LUA)
                 w->L = L;
                 w->LuaLog = LuaLog;
+                w->m_entry = m_entry;
 #endif
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
@@ -2021,6 +2062,7 @@ void CRenderedTextSubtitle::ParsePolygon(CSubtitle* sub, CStringW str, STSStyle&
 #if defined (_VSMOD) && defined(_LUA)
         w->L = L;
         w->LuaLog = LuaLog;
+        w->m_entry = m_entry;
 #endif
         sub->m_words.AddTail(w);
         m_kstart = m_kend;
@@ -2077,6 +2119,17 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
         if(LuaIsNumber(L, L"c3")) style.colors[2] = LuaGetInt(L, L"c3") & 0xFFFFFF;
         if(LuaIsNumber(L, L"c4")) style.colors[3] = LuaGetInt(L, L"c4") & 0xFFFFFF;
 
+        // Other
+        if(LuaIsNumber(L, L"rndx")) style.mod_rand.X = LuaGetFloat(L, L"rndx");
+        if(LuaIsNumber(L, L"rndy")) style.mod_rand.Y = LuaGetFloat(L, L"rndy");
+        if(LuaIsNumber(L, L"rndz")) style.mod_rand.Z = LuaGetFloat(L, L"rndz");
+        if(LuaIsNumber(L, L"rnds")) style.mod_rand.Seed = LuaGetFloat(L, L"rnds");
+        if(LuaIsNumber(L, L"rnd"))
+            style.mod_rand.X = style.mod_rand.Y = style.mod_rand.Z = LuaGetFloat(L, L"rnd");
+        if(LuaIsNumber(L, L"fsp")) style.fontSpacing = LuaGetFloat(L, L"fsp");
+        if(LuaIsNumber(L, L"fvsp")) style.mod_verticalSpace = LuaGetFloat(L, L"fvsp");
+        if(LuaIsNumber(L, L"frs")) style.mod_fontOrient = LuaGetFloat(L, L"frs");
+
         // Pop table
         lua_pop(L, 1);
     }
@@ -2105,6 +2158,43 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
         // Pop table
         lua_pop(L, 1);
     }
+    // Vector clip position
+    // Check "vcpos" table:
+    if(LuaIsTable(L, L"vcpos"))
+    {
+        // Push table on top
+        lua_getfield(L, -1, "vcpos");
+        if(LuaIsNumber(L, L"x") && LuaIsNumber(L, L"y"))
+        {
+            int X = LuaGetFloat(L, L"x") * sub->m_scalex * 8;
+            int Y = LuaGetFloat(L, L"y") * sub->m_scaley * 8;
+
+            if(Effect* e = DNew Effect)
+            {
+                e->param[0] = 0; // usual move
+                e->param[1] = e->param[3] = X;
+                e->param[2] = e->param[4] = Y;
+                e->t[0] = e->t[1] = 0;
+
+                sub->m_effects[EF_VECTCLP] = e;
+            }
+        }
+        // Pop table
+        lua_pop(L, 1);
+    }
+
+    //  User data
+    // Check "user" table:
+    if(LuaIsTable(L, L"user"))
+    {
+        CStringA index;
+        index.Format("sub_%d", m_entry);
+
+        // Push table on top
+        lua_getfield(L, -1, "user");
+        lua_setglobal(L, index);
+    }
+
     // Custom modify points before transform
     style.LuaBeforeTransformHandler = CheckLuaHandler(L"beforetransform");
     style.LuaAfterTransformHandler = CheckLuaHandler(L"aftertransform");
@@ -2165,44 +2255,54 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
         CStringA Func(cmd);
         if(LuaHasFunction(L, cmd))
         {
-            if(!fAnimate)
+            // Find function =D
+            lua_pushstring(L, Func);
+            lua_rawget(L, LUA_GLOBALSINDEX);
+
+            // Create line table
+            lua_newtable(L);
+            LuaAddIntegerField(L, "time", m_time);
+            LuaAddIntegerField(L, "length", m_delay);
+            LuaAddIntegerField(L, "id", m_entry);
+            if(fAnimate)
+                LuaAddNumberField(L, "animate", CalcAnimation(1.0, 0.0, true));
+
+            // Saved user data
             {
-                // Find function =D
-                lua_pushstring(L, Func);
-                lua_rawget(L, LUA_GLOBALSINDEX);
+                CStringA index;
+                index.Format("sub_%d", m_entry);
+                lua_getglobal(L, index);
+                if(lua_istable(L, -1))
+                    lua_setfield(L, -2, "user");
+                else
+                    lua_pop(L, 1);
+            }
+            // Push arguments
+            for(int arg = 0; arg < params.GetCount(); arg++)
+            {
+                CStringA Param(params[arg]);
+                lua_pushstring(L, Param); 
+            }
+            if (lua_pcall(L, params.GetCount() + 1, 1, 0) != 0)
+            {
+                // error
+                CString ErrorText = L"Error: ";
+                CString LuaErrorText(lua_tostring(L, -1));
 
-                // Create line table
-                lua_newtable(L);
-                LuaAddIntegerField(L, "time", m_time);
-                LuaAddIntegerField(L, "length", m_delay);
-
-                // Push arguments
-                for(int arg = 0; arg < params.GetCount(); arg++)
-                {
-                    CStringA Param(params[arg]);
-                    lua_pushstring(L, Param); 
-                }
-                if (lua_pcall(L, params.GetCount() + 1, 1, 0) != 0)
-                {
-                    // error
-                    CString ErrorText = L"Error: ";
-                    CString LuaErrorText(lua_tostring(L, -1));
-
-                    LuaError(ErrorText + LuaErrorText);
-                }
+                LuaError(ErrorText + LuaErrorText);
+            }
+            else
+            {
+                // Retrieve result
+                if (!lua_istable(L, -1))
+                    LuaError(L"Line function must return a table");
                 else
                 {
-                    // Retrieve result
-                    if (!lua_istable(L, -1))
-                        LuaError(L"Line function must return a table");
-                    else
-                    {
-                        sub->m_fAnimated = true;
-                        ParseLuaTable(sub, style);
-                    }
+                    sub->m_fAnimated = true;
+                    ParseLuaTable(sub, style);
                 }
-                lua_pop(L, 1);
             }
+            lua_pop(L, 1);
             continue;
         }
         else
@@ -2952,7 +3052,7 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
 #ifdef _LUA
         else if(cmd == L"lua")
         {
-            if((params.GetCount() > 0) && !fAnimate)
+            if(params.GetCount() > 0)
             {
                 CStringA Func(params[0]);
 
@@ -2966,7 +3066,19 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                     lua_newtable(L);
                     LuaAddIntegerField(L, "time", m_time);
                     LuaAddIntegerField(L, "length", m_delay);
-
+                    LuaAddIntegerField(L, "id", m_entry);
+                    if(fAnimate)
+                        LuaAddNumberField(L, "animate", CalcAnimation(1.0, 0.0, true));
+                    // Saved user data
+                    {
+                        CStringA index;
+                        index.Format("sub_%d", m_entry);
+                        lua_getglobal(L, index);
+                        if(lua_istable(L, -1))
+                            lua_setfield(L, -2, "user");
+                        else
+                            lua_pop(L, 1);
+                    }
                     // Push arguments
                     for(int arg = 1; arg < params.GetCount(); arg++)
                     {
@@ -3626,6 +3738,9 @@ CSubtitle* CRenderedTextSubtitle::GetSubtitle(int entry)
         sub->m_scaley = m_dstScreenSize.cy > 0 ? 1.0 * (stss.relativeTo == 1 ? m_vidrect.Height() : m_size.cy) / (m_dstScreenSize.cy * 8) : 1.0;
     }
 
+#if defined(_VSMOD) && defined(_LUA)
+    m_entry = entry;
+#endif
     m_animStart = m_animEnd = 0;
     m_animAccel = 1;
     m_ktype = m_kstart = m_kend = 0;
@@ -4321,8 +4436,15 @@ STDMETHODIMP CRenderedTextSubtitle::Render(SubPicDesc& spd, REFERENCE_TIME rt, d
 #endif
             p.y += l->m_ascent + l->m_descent;
         }
-
-        //delete s;
+#if defined (_VSMOD) && defined(_LUA)
+        // Remove user data
+        {
+            CStringA index;
+            index.Format("sub_%d", m_entry);
+            lua_pushnil(L);
+            lua_setglobal(L, index);
+        }
+#endif
     }
 
     bbox = bbox2;
