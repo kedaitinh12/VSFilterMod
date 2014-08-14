@@ -129,7 +129,14 @@ private:
     virtual bool Append(CWord* w);
 
 public:
+#if defined (_VSMOD) && defined(_LUA)
+    CString LuaStyle;
+    CClipper(CStringW str, CSize size, double scalex, double scaley, bool inverse, CString LuaStyle, lua_State * L, std::wofstream * LuaLog, int entry);
+
+    void ParseLuaTable(STSStyle& style, CPoint & org);
+#else
     CClipper(CStringW str, CSize size, double scalex, double scaley, bool inverse);
+#endif
     virtual ~CClipper();
 
     CSize m_size;

@@ -1026,8 +1026,94 @@ bool CPolygon::CreatePath()
 }
 
 // CClipper
+#ifdef _LUA
+void CClipper::ParseLuaTable(STSStyle& style, CPoint & org)
+{
+    // Check "style" table:
+    if(LuaIsTable(L, L"style"))
+    {
+        // Push table on top
+        lua_getfield(L, -1, "style");
+        
+        // Blur
+        if(LuaIsNumber(L, L"blur")) style.fGaussianBlurX = style.fGaussianBlurY = LuaGetFloat(L, L"blur");
+        if(LuaIsNumber(L, L"be")) style.fBlur = LuaGetFloat(L, L"be");
 
-CClipper::CClipper(CStringW str, CSize size, double scalex, double scaley, bool inverse)
+        // Transformation
+        if(LuaIsNumber(L, L"frx")) style.fontAngleX = LuaGetFloat(L, L"frx");
+        if(LuaIsNumber(L, L"fry")) style.fontAngleY = LuaGetFloat(L, L"fry");
+        if(LuaIsNumber(L, L"frz")) style.fontAngleZ = LuaGetFloat(L, L"frz");
+        if(LuaIsNumber(L, L"fax")) style.fontShiftX = LuaGetFloat(L, L"fax");
+        if(LuaIsNumber(L, L"fay")) style.fontShiftY = LuaGetFloat(L, L"fay");
+        if(LuaIsNumber(L, L"fscx")) style.fontScaleX = LuaGetFloat(L, L"fscx");
+        if(LuaIsNumber(L, L"fscy")) style.fontScaleY = LuaGetFloat(L, L"fscy");
+        if(LuaIsNumber(L, L"fsc")) style.fontScaleX = style.fontScaleY = LuaGetFloat(L, L"fsc");
+
+        // Alphas
+        if(LuaIsNumber(L, L"a1")) style.alpha[0] = LuaGetInt(L, L"a1") & 0xFF;
+        if(LuaIsNumber(L, L"a2")) style.alpha[1] = LuaGetInt(L, L"a2") & 0xFF;
+        if(LuaIsNumber(L, L"a3")) style.alpha[2] = LuaGetInt(L, L"a3") & 0xFF;
+        if(LuaIsNumber(L, L"a4")) style.alpha[3] = LuaGetInt(L, L"a4") & 0xFF;
+
+        // Other
+        if(LuaIsNumber(L, L"rndx")) style.mod_rand.X = LuaGetFloat(L, L"rndx");
+        if(LuaIsNumber(L, L"rndy")) style.mod_rand.Y = LuaGetFloat(L, L"rndy");
+        if(LuaIsNumber(L, L"rndz")) style.mod_rand.Z = LuaGetFloat(L, L"rndz");
+        if(LuaIsNumber(L, L"rnds")) style.mod_rand.Seed = LuaGetFloat(L, L"rnds");
+        if(LuaIsNumber(L, L"rnd"))
+            style.mod_rand.X = style.mod_rand.Y = style.mod_rand.Z = LuaGetFloat(L, L"rnd");
+
+        // Pop table
+        lua_pop(L, 1);
+    }
+
+    //  User data
+    // Check "user" table:
+    if(LuaIsTable(L, L"user"))
+    {
+        CStringA index;
+        index.Format("sub_%d", m_entry);
+
+        // Push table on top
+        lua_getfield(L, -1, "user");
+        lua_setglobal(L, index);
+    }
+
+    // Check "org" table:
+    if(LuaIsTable(L, L"org"))
+    {
+        // Push table on top
+        lua_getfield(L, -1, "org");
+        if(LuaIsNumber(L, L"x") && LuaIsNumber(L, L"y"))
+        {
+            org.x = LuaGetFloat(L, L"x") * 8;
+            org.y = LuaGetFloat(L, L"y") * 8;
+        }
+        // Pop table
+        lua_pop(L, 1);
+    }
+
+    // Custom modify points before transform
+    {
+        CString LuaBeforeTransformHandler = CheckLuaHandler(L"beforetransform");
+        CString LuaAfterTransformHandler = CheckLuaHandler(L"aftertransform");
+        CString LuaCustomTransformHandler = CheckLuaHandler(L"customtransform");
+
+        if(LuaBeforeTransformHandler.GetLength() > 0)
+            style.LuaBeforeTransformHandler = LuaBeforeTransformHandler;
+        if(LuaAfterTransformHandler.GetLength() > 0)
+            style.LuaAfterTransformHandler = LuaAfterTransformHandler;
+        if(LuaCustomTransformHandler.GetLength() > 0)
+            style.LuaCustomTransformHandler = LuaCustomTransformHandler;
+    }
+}
+#endif
+
+#if defined (_VSMOD) && defined(_LUA)
+    CClipper::CClipper(CStringW str, CSize size, double scalex, double scaley, bool inverse, CString LuaStyle, lua_State * L, std::wofstream * LuaLog, int entry)
+#else
+    CClipper::CClipper(CStringW str, CSize size, double scalex, double scaley, bool inverse)
+#endif
     : CPolygon(STSStyle(), str, 0, 0, 0, scalex, scaley, 0)
 {
     m_size.cx = m_size.cy = 0;
@@ -1035,13 +1121,67 @@ CClipper::CClipper(CStringW str, CSize size, double scalex, double scaley, bool 
 
     if(size.cx < 0 || size.cy < 0 || !(m_pAlphaMask = DNew BYTE[size.cx*size.cy])) return;
 
+#if defined (_VSMOD) && defined(_LUA)
+    this->L = L;
+    this->LuaLog = LuaLog;
+    this->LuaStyle = LuaStyle;
+
+    CPoint org(0, 0);
+
+    m_entry = entry;
+    if(LuaStyle.GetLength() > 0)
+    {
+        CStringA Func(LuaStyle);
+        if(LuaHasFunction(L, LuaStyle))
+        {
+            // Find function =D
+            lua_pushstring(L, Func);
+            lua_rawget(L, LUA_GLOBALSINDEX);
+
+            // Create line table
+            lua_newtable(L);
+            LuaAddIntegerField(L, "id", m_entry);
+
+            // Saved user data
+            {
+                CStringA index;
+                index.Format("sub_%d", m_entry);
+                lua_getglobal(L, index);
+                if(lua_istable(L, -1))
+                    lua_setfield(L, -2, "user");
+                else
+                    lua_pop(L, 1);
+            }
+            if (lua_pcall(L, 1, 1, 0) != 0)
+            {
+                // error
+                CString ErrorText = L"Error: ";
+                CString LuaErrorText(lua_tostring(L, -1));
+
+                LuaError(ErrorText + LuaErrorText);
+            }
+            else
+            {
+                // Retrieve result
+                if (!lua_istable(L, -1))
+                    LuaError(L"Clip function must return a table");
+                else
+                {
+                    ParseLuaTable(m_style, org);
+                }
+            }
+            lua_pop(L, 1);
+        }
+    }
+#endif
+
     m_size = size;
     m_inverse = inverse;
 
     memset(m_pAlphaMask, 0, size.cx * size.cy);
 
 #if defined (_VSMOD) && defined(_LUA)
-    Paint(CPoint(0, 0), CPoint(0, 0), 6);
+    Paint(CPoint(0, 0), org, 6);
 #else
     Paint(CPoint(0, 0), CPoint(0, 0));
 #endif
@@ -1095,7 +1235,11 @@ CClipper::~CClipper()
 
 CWord* CClipper::Copy()
 {
+#if defined (_VSMOD) && defined(_LUA)
+    return(DNew CClipper(m_str, m_size, m_scalex, m_scaley, m_inverse, LuaStyle, L, LuaLog, m_entry));
+#else
     return(DNew CClipper(m_str, m_size, m_scalex, m_scaley, m_inverse));
+#endif
 }
 
 bool CClipper::Append(CWord* w)
@@ -1610,7 +1754,11 @@ void CSubtitle::CreateClippers(CSize size)
         {
             CStringW str;
             str.Format(L"m %d %d l %d %d %d %d %d %d", 0, 0, w, 0, w, h, 0, h);
+#if defined (_VSMOD) && defined(_LUA)
+            m_pClipper = DNew CClipper(str, size, 1, 1, false, L"", L, LuaLog, 0);
+#else
             m_pClipper = DNew CClipper(str, size, 1, 1, false);
+#endif
             if(!m_pClipper) return;
         }
 
@@ -1648,7 +1796,11 @@ void CSubtitle::CreateClippers(CSize size)
         {
             CStringW str;
             str.Format(L"m %d %d l %d %d %d %d %d %d", 0, 0, w, 0, w, h, 0, h);
+#if defined (_VSMOD) && defined(_LUA)
+            m_pClipper = DNew CClipper(str, size, 1, 1, false, L"", L, LuaLog, 0);
+#else
             m_pClipper = DNew CClipper(str, size, 1, 1, false);
+#endif
             if(!m_pClipper) return;
         }
 
@@ -2158,6 +2310,29 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
         // Pop table
         lua_pop(L, 1);
     }
+    // Check "org" table:
+    if(LuaIsTable(L, L"org"))
+    {
+        // Push table on top
+        lua_getfield(L, -1, "org");
+        if(LuaIsNumber(L, L"x") && LuaIsNumber(L, L"y"))
+        {
+            int X = LuaGetFloat(L, L"x") * sub->m_scalex * 8;
+            int Y = LuaGetFloat(L, L"y") * sub->m_scaley * 8;
+
+            if(Effect* e = DNew Effect)
+            {
+                e->param[0] = 0; // usual move
+                e->param[1] = e->param[3] = X;
+                e->param[2] = e->param[4] = Y;
+                e->t[0] = e->t[1] = 0;
+
+                sub->m_effects[EF_ORG] = e;
+            }
+        }
+        // Pop table
+        lua_pop(L, 1);
+    }
     // Vector clip position
     // Check "vcpos" table:
     if(LuaIsTable(L, L"vcpos"))
@@ -2166,8 +2341,8 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
         lua_getfield(L, -1, "vcpos");
         if(LuaIsNumber(L, L"x") && LuaIsNumber(L, L"y"))
         {
-            int X = LuaGetFloat(L, L"x") * sub->m_scalex * 8;
-            int Y = LuaGetFloat(L, L"y") * sub->m_scaley * 8;
+            int X = LuaGetFloat(L, L"x") * sub->m_scalex;
+            int Y = LuaGetFloat(L, L"y") * sub->m_scaley;
 
             if(Effect* e = DNew Effect)
             {
@@ -2197,9 +2372,21 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
 
     // Custom modify points before transform
     style.LuaBeforeTransformHandler = CheckLuaHandler(L"beforetransform");
-    style.LuaAfterTransformHandler = CheckLuaHandler(L"aftertransform");
-    style.LuaCustomTransformHandler = CheckLuaHandler(L"customtransform");
+    {
+        CString LuaBeforeTransformHandler = CheckLuaHandler(L"beforetransform");
+        CString LuaAfterTransformHandler = CheckLuaHandler(L"aftertransform");
+        CString LuaCustomTransformHandler = CheckLuaHandler(L"customtransform");
+        CString LuaClipStyleHandler = CheckLuaHandler(L"clipstyle");
 
+        if(LuaBeforeTransformHandler.GetLength() > 0)
+            style.LuaBeforeTransformHandler = LuaBeforeTransformHandler;
+        if(LuaAfterTransformHandler.GetLength() > 0)
+            style.LuaAfterTransformHandler = LuaAfterTransformHandler;
+        if(LuaCustomTransformHandler.GetLength() > 0)
+            style.LuaCustomTransformHandler = LuaCustomTransformHandler;
+        if(LuaClipStyleHandler.GetLength() > 0)
+            style.LuaClipStyleHandler = LuaClipStyleHandler;
+    }
 }
 #endif
 
@@ -2742,12 +2929,20 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
 
             if(params.GetCount() == 1 && !sub->m_pClipper)
             {
+#if defined (_VSMOD) && defined(_LUA)
+                sub->m_pClipper = DNew CClipper(params[0], CSize(m_size.cx >> 3, m_size.cy >> 3), sub->m_scalex, sub->m_scaley, invert, style.LuaClipStyleHandler, L, LuaLog, m_entry);
+#else
                 sub->m_pClipper = DNew CClipper(params[0], CSize(m_size.cx >> 3, m_size.cy >> 3), sub->m_scalex, sub->m_scaley, invert);
+#endif           
             }
             else if(params.GetCount() == 2 && !sub->m_pClipper)
             {
                 int scale = max(wcstol(p, NULL, 10), 1);
+#if defined (_VSMOD) && defined(_LUA)
+                sub->m_pClipper = DNew CClipper(params[1], CSize(m_size.cx >> 3, m_size.cy >> 3), sub->m_scalex / (1 << (scale - 1)), sub->m_scaley / (1 << (scale - 1)), invert, style.LuaClipStyleHandler, L, LuaLog, m_entry);
+#else
                 sub->m_pClipper = DNew CClipper(params[1], CSize(m_size.cx >> 3, m_size.cy >> 3), sub->m_scalex / (1 << (scale - 1)), sub->m_scaley / (1 << (scale - 1)), invert);
+#endif       
             }
             else if(params.GetCount() == 4)
             {

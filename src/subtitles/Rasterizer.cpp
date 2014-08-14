@@ -2270,6 +2270,9 @@ byte MOD_MOVEVC::GetAlphaValue(int wx, int wy)
     if(!enable)
     {
 //		return 0xFF;
+        if((wx < 0) || (wx >= spd.cx)) return 0;
+        if((wy <= 0) || (wy > spd.cy)) return 0;
+
         return alphamask[wx+((hfull-wy)*spd.cx)];
     }
 

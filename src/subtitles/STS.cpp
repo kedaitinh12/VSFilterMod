@@ -2292,6 +2292,8 @@ CSimpleTextSubtitle::CSimpleTextSubtitle()
 #ifdef _VSMOD
 #ifdef _LUA
     CreateLuaState();
+
+    LuaLog = NULL;
 #endif
 #ifdef INDEXING
     ind_size = 0;
