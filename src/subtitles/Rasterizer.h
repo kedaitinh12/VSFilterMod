@@ -84,7 +84,11 @@ public:
     RasterizerNfo();
 };
 
+#if defined (_VSMOD) && defined(_LUA)
+class Rasterizer : public CMyLua
+#else
 class Rasterizer
+#endif
 {
     bool fFirstSet;
     CPoint firstp, lastp;
@@ -167,6 +171,10 @@ private:
     void Draw_Grad_Alpha_sp_noBody_sse2(RasterizerNfo& rnfo);
 #endif
 public:
+#if defined (_VSMOD) && defined(_LUA)
+    int    m_entry; // id
+#endif
+
     Rasterizer();
     virtual ~Rasterizer();
 

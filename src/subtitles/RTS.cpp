@@ -826,6 +826,7 @@ CWord* CPolygon::Copy()
 #if defined(_VSMOD) && defined(_LUA)
     T->L = L;
     T->LuaLog = LuaLog;
+    T->m_entry = m_entry;
 #endif
     return T;
 }

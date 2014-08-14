@@ -35,18 +35,14 @@ public:
 
 class CPolygon;
 
-#if defined (_VSMOD) && defined(_LUA)
-class CWord : public Rasterizer, public CMyLua
-#else
 class CWord : public Rasterizer
-#endif
 {
     bool m_fDrawn;
     CPoint m_p;
     
-    #if defined (_VSMOD) && defined(_LUA)
+#if defined (_VSMOD) && defined(_LUA)
     void CustomTransform(CPoint org, CString F, int Layer);
-    #endif
+#endif
 
     void Transform(CPoint org);
 
@@ -78,8 +74,6 @@ public:
     virtual bool Append(CWord* w);
 
 #if defined (_VSMOD) && defined(_LUA)
-    int    m_entry; // id
-
     void Paint(CPoint p, CPoint org, int Layer);
 #else
     void Paint(CPoint p, CPoint org);

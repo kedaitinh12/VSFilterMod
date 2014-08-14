@@ -161,6 +161,7 @@
     <ClCompile Include="DVBSub.cpp" />
     <ClCompile Include="GFN.cpp" />
     <ClCompile Include="HdmvSub.cpp" />
+    <ClCompile Include="OverlayMix.cpp" />
     <ClCompile Include="Rasterizer.cpp">
       <AssemblerOutput Condition="'$(Configuration)|$(Platform)'=='Release (MOD)|Win32'">AssemblyAndSourceCode</AssemblerOutput>
       <AssemblerOutput Condition="'$(Configuration)|$(Platform)'=='Debug (MOD)|Win32'">AssemblyAndSourceCode</AssemblerOutput>
@@ -197,6 +198,7 @@
     <ClInclude Include="DVBSub.h" />
     <ClInclude Include="GFN.h" />
     <ClInclude Include="HdmvSub.h" />
+    <ClInclude Include="OverlayMix.h" />
     <ClInclude Include="Rasterizer.h" />
     <ClInclude Include="RealTextParser.h" />
     <ClInclude Include="RenderedHdmvSubtitle.h" />
