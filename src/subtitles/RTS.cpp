@@ -1027,7 +1027,7 @@ bool CPolygon::CreatePath()
 
 // CClipper
 #ifdef _LUA
-void CClipper::ParseLuaTable(STSStyle& style, CPoint & org)
+void CClipper::ParseLuaTable(STSStyle& style, CPoint & pos, CPoint & org)
 {
     // Check "style" table:
     if(LuaIsTable(L, L"style"))
@@ -1079,6 +1079,20 @@ void CClipper::ParseLuaTable(STSStyle& style, CPoint & org)
         lua_setglobal(L, index);
     }
 
+    // Check "pos" table:
+    if(LuaIsTable(L, L"pos"))
+    {
+        // Push table on top
+        lua_getfield(L, -1, "pos");
+        if(LuaIsNumber(L, L"x") && LuaIsNumber(L, L"y"))
+        {
+            pos.x = LuaGetFloat(L, L"x") * 8;
+            pos.y = LuaGetFloat(L, L"y") * 8;
+        }
+        // Pop table
+        lua_pop(L, 1);
+    }
+
     // Check "org" table:
     if(LuaIsTable(L, L"org"))
     {
@@ -1127,6 +1141,7 @@ void CClipper::ParseLuaTable(STSStyle& style, CPoint & org)
     this->LuaStyle = LuaStyle;
 
     CPoint org(0, 0);
+    CPoint pos(0, 0);
 
     m_entry = entry;
     if(LuaStyle.GetLength() > 0)
@@ -1167,7 +1182,7 @@ void CClipper::ParseLuaTable(STSStyle& style, CPoint & org)
                     LuaError(L"Clip function must return a table");
                 else
                 {
-                    ParseLuaTable(m_style, org);
+                    ParseLuaTable(m_style, pos, org);
                 }
             }
             lua_pop(L, 1);
@@ -1181,7 +1196,7 @@ void CClipper::ParseLuaTable(STSStyle& style, CPoint & org)
     memset(m_pAlphaMask, 0, size.cx * size.cy);
 
 #if defined (_VSMOD) && defined(_LUA)
-    Paint(CPoint(0, 0), org, 6);
+    Paint(pos, org, 6);
 #else
     Paint(CPoint(0, 0), CPoint(0, 0));
 #endif

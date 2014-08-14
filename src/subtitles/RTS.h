@@ -133,7 +133,7 @@ public:
     CString LuaStyle;
     CClipper(CStringW str, CSize size, double scalex, double scaley, bool inverse, CString LuaStyle, lua_State * L, std::wofstream * LuaLog, int entry);
 
-    void ParseLuaTable(STSStyle& style, CPoint & org);
+    void ParseLuaTable(STSStyle& style, CPoint & pos, CPoint & org);
 #else
     CClipper(CStringW str, CSize size, double scalex, double scaley, bool inverse);
 #endif
