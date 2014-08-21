@@ -255,6 +255,9 @@ class CRenderedTextSubtitle : public CSimpleTextSubtitle, public ISubPicProvider
 
 #if defined(_VSMOD) && defined(_LUA)
     int   m_entry; // Id of line
+
+    int   m_start; // Start time
+    int   m_end;   // End time
 #endif
 
     CSize m_size;

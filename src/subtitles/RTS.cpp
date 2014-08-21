@@ -29,6 +29,7 @@
 // path m012. Lua animation
 #include <lua.h>
 #include <lualib.h>
+#include <lauxlib.h>
 #endif
 
 // WARNING: this isn't very thread safe, use only one RTS a time.
@@ -198,8 +199,7 @@ void CWord::CustomTransform(CPoint org, CString F, int Layer)
         y = mpPathPoints[i].y;
 
         // Find function =D
-        lua_pushstring(L, Func);
-        lua_rawget(L, LUA_GLOBALSINDEX);
+        lua_getglobal(L, Func);
 
         // Create line table
         lua_newtable(L);
@@ -275,7 +275,6 @@ void CWord::CustomTransform(CPoint org, CString F, int Layer)
                 if(LuaIsNumber(L, L"y")) mpPathPoints[i].y = LuaGetFloat(L, L"y");
 	        }
         }
-        lua_pop(L, 1);
     }
 }
 #endif
@@ -750,6 +749,7 @@ CWord* CText::Copy()
 #if defined(_VSMOD) && defined(_LUA)
     T->L = L;
     T->LuaLog = LuaLog;
+    T->m_entry = m_entry;
 #endif
     return T;
 }
@@ -1150,8 +1150,7 @@ void CClipper::ParseLuaTable(STSStyle& style, CPoint & pos, CPoint & org)
         if(LuaHasFunction(L, LuaStyle))
         {
             // Find function =D
-            lua_pushstring(L, Func);
-            lua_rawget(L, LUA_GLOBALSINDEX);
+            lua_getglobal(L, Func);
 
             // Create line table
             lua_newtable(L);
@@ -1183,9 +1182,9 @@ void CClipper::ParseLuaTable(STSStyle& style, CPoint & pos, CPoint & org)
                 else
                 {
                     ParseLuaTable(m_style, pos, org);
+                    lua_pop(L, 1);
                 }
             }
-            lua_pop(L, 1);
         }
     }
 #endif
@@ -2458,12 +2457,13 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
         if(LuaHasFunction(L, cmd))
         {
             // Find function =D
-            lua_pushstring(L, Func);
-            lua_rawget(L, LUA_GLOBALSINDEX);
+            lua_getglobal(L, Func);
 
             // Create line table
             lua_newtable(L);
             LuaAddIntegerField(L, "time", m_time);
+            LuaAddIntegerField(L, "start", m_start);
+            LuaAddIntegerField(L, "end", m_end);
             LuaAddIntegerField(L, "length", m_delay);
             LuaAddIntegerField(L, "id", m_entry);
             if(fAnimate)
@@ -2502,9 +2502,9 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                 {
                     sub->m_fAnimated = true;
                     ParseLuaTable(sub, style);
+                    lua_pop(L, 1);
                 }
             }
-            lua_pop(L, 1);
             continue;
         }
         else
@@ -3265,16 +3265,15 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
             if(params.GetCount() > 0)
             {
                 CStringA Func(params[0]);
-
-                // Find function =D
-                lua_pushstring(L, Func);
-                lua_rawget(L, LUA_GLOBALSINDEX);
-
-                if(lua_isfunction(L, -1))
+                if(LuaHasFunction(L, params[0]))
                 {
+                    CStringA Func(params[0]);
+                    lua_getglobal(L, Func);
                     // Create line table
                     lua_newtable(L);
                     LuaAddIntegerField(L, "time", m_time);
+                    LuaAddIntegerField(L, "start", m_start);
+                    LuaAddIntegerField(L, "end", m_end);
                     LuaAddIntegerField(L, "length", m_delay);
                     LuaAddIntegerField(L, "id", m_entry);
                     if(fAnimate)
@@ -3313,9 +3312,9 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                             sub->m_fAnimated = true;
                             ParseLuaTable(sub, style);
                         }
+                        lua_pop(L, 1);
                     }
                 }
-                lua_pop(L, 1);
             }
         }
 #endif
@@ -4181,6 +4180,11 @@ STDMETHODIMP CRenderedTextSubtitle::Render(SubPicDesc& spd, REFERENCE_TIME rt, d
             int start = TranslateStart(entry, fps);
             m_time = t - start;
             m_delay = TranslateEnd(entry, fps) - start;
+
+#if defined(_VSMOD) && defined(_LUA)
+            m_start = start;
+            m_end = start + m_delay;
+#endif
         }
 
         CSubtitle* s = GetSubtitle(entry);

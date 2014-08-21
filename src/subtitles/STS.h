@@ -45,6 +45,9 @@ public:
 
     void LuaAddIntegerField(lua_State * L, CStringA Field, int Value);
     void LuaAddNumberField(lua_State * L, CStringA Field, double Value);
+    void LuaAddBoolField(lua_State* L, CStringA Field, bool Value);
+    void LuaAddFunctionField(lua_State* L, CStringA Field, lua_CFunction Value);
+    void LuaAddUserField(lua_State* L, CStringA Field, void* Value);
 
     bool LuaHasFunction(lua_State * L, CString funcname);
     CString CheckLuaHandler(CString func);
