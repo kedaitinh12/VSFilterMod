@@ -1112,42 +1112,74 @@ CRect Rasterizer::Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int x
     else
         Color = new COverlayGradient(mod_grad);
 #endif
-    if(!pAlphaMask)
+
+#if defined (_VSMOD) && defined(_LUA)
+    if (LuaRendererHandler.GetLength() > 0)
     {
-        if(fSSE2)
+        COverlayGetter* Alpha = (pAlphaMask) ? new COverlayAlpha(mod_vc) : NULL;
+
+        if (fSSE2)
         {
-            COverlayMixerSSE2 Mix(&rnfo, Color);
+            COverlayLuaMixer<COverlayMixerSSE2> Mix(&rnfo, Color, Alpha);
+            Mix.L = L;
+            Mix.LuaLog = LuaLog;
+            Mix.m_entry = m_entry;
+            Mix.Function = LuaRendererHandler;
             Mix.Draw(fBody);
         }
         else
         {
-            COverlayMixer Mix(&rnfo, Color);
+            COverlayLuaMixer<COverlayMixer> Mix(&rnfo, Color, Alpha);
+            Mix.L = L;
+            Mix.LuaLog = LuaLog;
+            Mix.m_entry = m_entry;
+            Mix.Function = LuaRendererHandler;
             Mix.Draw(fBody);
         }
+
+        if (Alpha) delete Alpha;
     }
     else
     {
-        COverlayGetter * Alpha;
-
-#ifdef _VSMOD
-        Alpha = new COverlayAlpha(mod_vc);
-#else
-        Alpha = new COverlayAlpha(pAlphaMask, spd.w, spd.h);
 #endif
-        if(fSSE2)
+        if (!pAlphaMask)
         {
-            COverlayAlphaMixer<COverlayMixerSSE2> Mix(&rnfo, Color, Alpha);
-            Mix.Draw(fBody);
+            if (fSSE2)
+            {
+                COverlayMixerSSE2 Mix(&rnfo, Color);
+                Mix.Draw(fBody);
+            }
+            else
+            {
+                COverlayMixer Mix(&rnfo, Color);
+                Mix.Draw(fBody);
+            }
         }
         else
         {
-            
-            COverlayAlphaMixer<COverlayMixer> Mix(&rnfo, Color, Alpha);
-            Mix.Draw(fBody);
-        }
+            COverlayGetter* Alpha;
 
-        delete Alpha;
+#ifdef _VSMOD
+            Alpha = new COverlayAlpha(mod_vc);
+#else
+            Alpha = new COverlayAlpha(pAlphaMask, spd.w, spd.h);
+#endif
+            if (fSSE2)
+            {
+                COverlayAlphaMixer<COverlayMixerSSE2> Mix(&rnfo, Color, Alpha);
+                Mix.Draw(fBody);
+            }
+            else
+            {
+                COverlayAlphaMixer<COverlayMixer> Mix(&rnfo, Color, Alpha);
+                Mix.Draw(fBody);
+            }
+
+            delete Alpha;
+        }
+#if defined (_VSMOD) && defined(_LUA)
     }
+#endif
 
     delete Color;
     // Remember to EMMS!

@@ -748,6 +748,7 @@ CWord* CText::Copy()
     T->L = L;
     T->LuaLog = LuaLog;
     T->m_entry = m_entry;
+    T->LuaRendererHandler = LuaRendererHandler;
 #endif
     return T;
 }
@@ -2180,6 +2181,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
                 w->L = L;
                 w->LuaLog = LuaLog;
                 w->m_entry = m_entry;
+                w->LuaRendererHandler = style.LuaRendererHandler;
 #endif
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
@@ -2194,6 +2196,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
                 w->L = L;
                 w->LuaLog = LuaLog;
                 w->m_entry = m_entry;
+                w->LuaRendererHandler = style.LuaRendererHandler;
 #endif
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
@@ -2207,6 +2210,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
                 w->L = L;
                 w->LuaLog = LuaLog;
                 w->m_entry = m_entry;
+                w->LuaRendererHandler = style.LuaRendererHandler;
 #endif
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
@@ -2229,6 +2233,7 @@ void CRenderedTextSubtitle::ParsePolygon(CSubtitle* sub, CStringW str, STSStyle&
         w->L = L;
         w->LuaLog = LuaLog;
         w->m_entry = m_entry;
+        w->LuaRendererHandler = style.LuaRendererHandler;
 #endif
         sub->m_words.AddTail(w);
         m_kstart = m_kend;
@@ -2391,6 +2396,7 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
         CString LuaAfterTransformHandler = CheckLuaHandler(L"aftertransform");
         CString LuaCustomTransformHandler = CheckLuaHandler(L"customtransform");
         CString LuaClipStyleHandler = CheckLuaHandler(L"clipstyle");
+        CString LuaRendererHandler = CheckLuaHandler(L"renderer");
 
         if(LuaBeforeTransformHandler.GetLength() > 0)
             style.LuaBeforeTransformHandler = LuaBeforeTransformHandler;
@@ -2400,6 +2406,8 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
             style.LuaCustomTransformHandler = LuaCustomTransformHandler;
         if(LuaClipStyleHandler.GetLength() > 0)
             style.LuaClipStyleHandler = LuaClipStyleHandler;
+        if(LuaRendererHandler.GetLength() > 0)
+            style.LuaRendererHandler = LuaRendererHandler;
     }
 }
 #endif

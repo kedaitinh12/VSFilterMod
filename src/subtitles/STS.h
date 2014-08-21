@@ -254,6 +254,7 @@ public:
     CString        LuaAfterTransformHandler;
     CString        LuaCustomTransformHandler;
     CString        LuaClipStyleHandler;
+    CString        LuaRendererHandler;
 #endif
 #endif
 

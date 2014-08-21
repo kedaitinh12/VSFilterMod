@@ -56,12 +56,12 @@ public:
 class COverlayAlpha : public COverlayGetter
 {
 private:
-    byte * mask;
+    byte* mask;
     int    width;
     int    height;
 
 public:
-    COverlayAlpha(byte * Mask, int W, int H) { mask = Mask; width = W; height = H; }
+    COverlayAlpha(byte* Mask, int W, int H) { mask = Mask; width = W; height = H; }
 
     DWORD getcolor1(int x, int y) { return mask[x + (height - y) * width]; }
     DWORD getcolor2(int x, int y) { return mask[x + (height - y) * width]; }
@@ -72,29 +72,30 @@ public:
 class COverlayMixer
 {
 protected:
-    RasterizerNfo * Info;
-
     // Color of layers
-    COverlayGetter * Color;
-
-    // Mixer
-    const static void PixMix(DWORD * dst, DWORD color, BYTE alpha);
-    const static DWORD SafeSubstract(DWORD a, DWORD b);
+    COverlayGetter* Color;
 
 public:
-    COverlayMixer(RasterizerNfo * Info, COverlayGetter * Color);
-    
+    RasterizerNfo* Info;
+
+    COverlayMixer(RasterizerNfo* Info, COverlayGetter* Color);
+
+    // Mixer
+    virtual void PixMix(DWORD* dst, DWORD color, BYTE alpha);
+    virtual DWORD SafeSubstract(DWORD a, DWORD b);
+
     virtual void Draw(bool Body);
 };
 
 class COverlayMixerSSE2 : public COverlayMixer
 {
 protected:
-    const static void PixMix(DWORD * dst, DWORD color, BYTE alpha);
-    const static DWORD SafeSubstract(DWORD a, DWORD b);
 
 public:
-    COverlayMixerSSE2(RasterizerNfo * Info, COverlayGetter * Color) : COverlayMixer(Info, Color) {}
+    COverlayMixerSSE2(RasterizerNfo* Info, COverlayGetter* Color) : COverlayMixer(Info, Color) {}
+
+    void PixMix(DWORD* dst, DWORD color, BYTE alpha);
+    DWORD SafeSubstract(DWORD a, DWORD b);
 };
 
 // Mix with clip
@@ -102,45 +103,46 @@ template<class T> class COverlayAlphaMixer : public T
 {
 private:
     // Alpha of layers
-    COverlayGetter * Alpha;
+    COverlayGetter* Alpha;
 
 public:
-    COverlayAlphaMixer(RasterizerNfo * Info, COverlayGetter * Color, COverlayGetter * Alpha)
-        : T(Info, Color) { this->Alpha = Alpha; }
-
-    void Draw(bool Body)
-    {
-        int h = Info->h;
-
-        byte* s = Info->s;
-        DWORD* dst = Info->dst;
-        int gran = (Info->sw[1] == 0xffffffff) ? Info->w : min(Info->sw[3] + 1 - Info->xo, Info->w);
-
-        if(Body)
-        {
-            while(h--)
-            {
-                for(int wt = 0; wt < gran; ++wt)
-                    PixMix(&dst[wt], Color->getcolor1(wt, h), s[wt*2] * Alpha->getcolor1(wt, h) >> 6);
-                for(int wt = gran; wt < Info->w; ++wt)
-                    PixMix(&dst[wt], Color->getcolor2(wt, h), s[wt*2] * Alpha->getcolor2(wt, h) >> 6);
-
-                s += 2 * Info->overlayp;
-                dst = (DWORD*)((char *)dst + Info->pitch);
-            }
-        }
-        else
-        {
-            while(h--)
-            {
-                for(int wt = 0; wt < gran; ++wt)
-                    PixMix(&dst[wt], Color->getcolor1(wt, h), SafeSubstract(s[wt*2+1], s[wt*2]) * Alpha->getcolor1(wt, h) >> 6);
-                for(int wt = gran; wt < Info->w; ++wt)
-                    PixMix(&dst[wt], Color->getcolor2(wt, h), SafeSubstract(s[wt*2+1], s[wt*2]) * Alpha->getcolor2(wt, h) >> 6);
-
-                s += 2 * Info->overlayp;
-                dst = (DWORD*)((char *)dst + Info->pitch);
-            }
-        }
+    COverlayAlphaMixer(RasterizerNfo* Info, COverlayGetter* Color, COverlayGetter* Alpha)
+        : T(Info, Color) {
+        this->Alpha = Alpha;
     }
+
+    void Draw(bool Body);
 };
+
+#if defined(_VSMOD) && defined(_LUA)
+// Error
+int lua_Error(lua_State* L, CStringA Text);
+
+// Check binding
+void* l_CheckMix(lua_State* L);
+
+template<class T> int lua_RendererGet(lua_State* L);
+template<class T> int lua_RendererMix(lua_State* L);
+
+// Mix with clip
+template<class T> class COverlayLuaMixer : public T, public CMyLua
+{
+public:
+    // Custom function name
+    CString Function;
+    int     m_entry;
+    int     m_layer;
+
+    // Alpha of layers
+    COverlayGetter* Alpha;
+    bool    m_body;
+
+    COverlayLuaMixer(RasterizerNfo* Info, COverlayGetter* Color, COverlayGetter* Alpha)
+        : T(Info, Color) {
+        this->Alpha = Alpha;
+    }
+
+    void Draw(bool Body);
+};
+
+#endif
