@@ -3293,6 +3293,8 @@ void STSStyle::SetDefault()
     mod_grad.clear();
     // patch m007. symbol rotating
     mod_fontOrient = 0;
+    // vpatch v001. Orthogonal 2D projection
+    mod_ortho = false;
 #endif
 }
 
@@ -3331,6 +3333,8 @@ bool STSStyle::operator == (STSStyle& s)
            && mod_distort == s.mod_distort
            // patch m011. jitter
            && mod_jitter == s.mod_jitter
+            // vpatch v001. Orthogonal 2D projection
+           && mod_ortho == s.mod_ortho
 #endif
            && IsFontStyleEqual(s));
 }
@@ -3392,6 +3396,8 @@ void STSStyle::mod_CopyStyleFrom(STSStyle& s)
     mod_distort = s.mod_distort;
     // patch m011. jitter
     mod_jitter = s.mod_jitter;
+    // vpatch v001. Orthogonal 2D projection
+    mod_ortho = s.mod_ortho;
     // font
     charSet = s.charSet;
     fontName = s.fontName;
