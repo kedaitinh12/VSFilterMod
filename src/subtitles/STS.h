@@ -165,6 +165,8 @@ public:
 #ifdef _VSMOD
     // patch m001. Vertical fontspacing
     double  mod_verticalSpace;
+    // patch v002. Horizontal fontspacing
+    double  mod_horizontalSpace;
     // patch m002. Z-coord
     double mod_z;
     // patch m003. random text points
