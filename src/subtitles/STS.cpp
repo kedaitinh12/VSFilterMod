@@ -3279,7 +3279,7 @@ void STSStyle::SetDefault()
     fUnderline = false;
     fStrikeOut = false;
     fBlur = 0;
-    fGaussianBlur = 0;
+    fGaussianBlurX = fGaussianBlurY = 0;
     fontShiftX = fontShiftY = fontAngleZ = fontAngleX = fontAngleY = 0;
     relativeTo = 2;
 #ifdef _VSMOD
@@ -3316,7 +3316,8 @@ bool STSStyle::operator == (STSStyle& s)
            && alpha[2] == s.alpha[2]
            && alpha[3] == s.alpha[3]
            && fBlur == s.fBlur
-           && fGaussianBlur == s.fGaussianBlur
+           && fGaussianBlurX == s.fGaussianBlurX
+           && fGaussianBlurY == s.fGaussianBlurY
            && relativeTo == s.relativeTo
 #ifdef _VSMOD
            // patch m001. Vertical fontspacing
@@ -3379,7 +3380,8 @@ void STSStyle::mod_CopyStyleFrom(STSStyle& s)
     alpha[2] = s.alpha[2];
     alpha[3] = s.alpha[3];
     fBlur = s.fBlur;
-    fGaussianBlur = s.fGaussianBlur;
+    fGaussianBlurX = s.fGaussianBlurX;
+    fGaussianBlurY = s.fGaussianBlurY;
     relativeTo = s.relativeTo;
 
     //patch m001. Vertical fontspacing
@@ -3477,7 +3479,7 @@ CString& operator <<= (CString& style, STSStyle& s)
                  s.fontName, s.fontSize,
                  s.fontScaleX, s.fontScaleY,
                  s.fontSpacing, s.fontWeight,
-                 (int)s.fItalic, (int)s.fUnderline, (int)s.fStrikeOut, s.fBlur, s.fGaussianBlur,
+                 (int)s.fItalic, (int)s.fUnderline, (int)s.fStrikeOut, s.fBlur, s.fGaussianBlurX, s.fGaussianBlurY,
                  s.fontAngleZ, s.fontAngleX, s.fontAngleY,
                  s.relativeTo);
 
@@ -3516,7 +3518,8 @@ STSStyle& operator <<= (STSStyle& s, CString& style)
             s.fUnderline = !!GetInt(str, ';');
             s.fStrikeOut = !!GetInt(str, ';');
             s.fBlur = GetInt(str, ';');
-            s.fGaussianBlur = GetFloat(str, ';');
+            s.fGaussianBlurX = GetFloat(str, ';');
+            s.fGaussianBlurY = GetFloat(str, ';');
             s.fontAngleZ = GetFloat(str, ';');
             s.fontAngleX = GetFloat(str, ';');
             s.fontAngleY = GetFloat(str, ';');

@@ -176,7 +176,7 @@ public:
     bool ScanConvert();
     bool CreateWidenedRegion(int borderX, int borderY);
     void DeleteOutlines();
-    bool Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlur);
+    bool Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlurX, double fGaussianBlurY);
     int getOverlayWidth();
 #ifdef _VSMOD // patch m004. gradient colors
     CRect Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int xsub, int ysub, const DWORD* switchpts, bool fBody, bool fBorder, int typ, MOD_GRADIENT& mod_grad, MOD_MOVEVC& mod_vc);

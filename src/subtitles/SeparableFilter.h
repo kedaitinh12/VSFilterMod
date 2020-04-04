@@ -31,7 +31,7 @@
 // Filter an image in horizontal direction with a one-dimensional filter
 // PixelWidth is the distance in bytes between pixels
 template<ptrdiff_t PixelDist>
-void SeparableFilterX(unsigned char *src, unsigned char *dst, int width, int height, ptrdiff_t stride, int *kernel, int kernel_size, int divisor)
+void SeparableFilterX(unsigned char *src, unsigned char *dst, int width, int height, ptrdiff_t stride, int *kernel, int kernel_size, int divisor, int direction)
 {
 #pragma omp parallel for
     for(int y = 0; y < height; y++)
@@ -43,9 +43,13 @@ void SeparableFilterX(unsigned char *src, unsigned char *dst, int width, int hei
             int accum = 0;
             for(int k = 0; k < kernel_size; k++)
             {
-                int xofs = k - kernel_size / 2;
-                if(x + xofs < 0) xofs += width;
-                if(x + xofs >= width) xofs -= width;
+                int xofs = 0;
+                if (direction != 2)
+                {
+                    xofs = k - kernel_size / 2;
+                    if (x + xofs < 0) xofs += width;
+                    if (x + xofs >= width) xofs -= width;
+                }
                 accum += (int)(in[xofs*PixelDist] * kernel[k]);
             }
             accum /= divisor;
@@ -64,7 +68,7 @@ void SeparableFilterX(unsigned char *src, unsigned char *dst, int width, int hei
 // filtering once vertically will automatically catch all channels.
 // (Width must be multiplied by pixel width for that to happen though.)
 template<ptrdiff_t PixelDist>
-void SeparableFilterY(unsigned char *src, unsigned char *dst, int width, int height, ptrdiff_t stride, int *kernel, int kernel_size, int divisor)
+void SeparableFilterY(unsigned char *src, unsigned char *dst, int width, int height, ptrdiff_t stride, int *kernel, int kernel_size, int divisor, int direction)
 {
     width *= PixelDist;
 #pragma omp parallel for
@@ -77,9 +81,13 @@ void SeparableFilterY(unsigned char *src, unsigned char *dst, int width, int hei
             int accum = 0;
             for(int k = 0; k < kernel_size; k++)
             {
-                int yofs = k - kernel_size / 2;
-                if(y + yofs < 0) yofs += height;
-                if(y + yofs >= height) yofs -= height;
+                int yofs = 0;
+                if (direction != 1)
+                {
+                    yofs = k - kernel_size / 2;
+                    if (y + yofs < 0) yofs += height;
+                    if (y + yofs >= height) yofs -= height;
+                }
                 accum += (int)(in[yofs*stride] * kernel[k]);
             }
             accum /= divisor;
