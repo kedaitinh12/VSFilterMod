@@ -1038,10 +1038,13 @@ CRect CLine::PaintShadow(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPo
 
         if(w->m_style.shadowDepthX != 0 || w->m_style.shadowDepthY != 0)
         {
-            int x = p.x + (int)(w->m_style.shadowDepthX + 0.5);
-#ifdef _VSMOD // patch m001. Vertical fontspacing
+#ifdef _VSMOD
+            // vpatch v002. Horizontal fontspacing
+            int x = p.x - w->m_style.mod_horizontalSpace + (int)(w->m_style.shadowDepthX + 0.5);
+            // patch m001. Vertical fontspacing
             int y = p.y - w->m_style.mod_verticalSpace + m_ascent - w->m_ascent + (int)(w->m_style.shadowDepthY + 0.5);
 #else
+            int x = p.x + (int)(w->m_style.shadowDepthX + 0.5);
             int y = p.y + m_ascent - w->m_ascent + (int)(w->m_style.shadowDepthY + 0.5);
 #endif
             DWORD a = 0xff - w->m_style.alpha[3];
@@ -1106,10 +1109,12 @@ CRect CLine::PaintOutline(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CP
 
         if(w->m_style.outlineWidthX + w->m_style.outlineWidthY > 0 && !(w->m_ktype == 2 && time < w->m_kstart))
         {
-            int x = p.x;
-#ifdef _VSMOD // patch m001. Vertical fontspacing
+#ifdef _VSMOD // vpatch v002. Horizontal fontspacing
+            int x = p.x - w->m_style.mod_horizontalSpace;
+            // patch m001. Vertical fontspacing
             int y = p.y - w->m_style.mod_verticalSpace + m_ascent - w->m_ascent;
 #else
+            int x = p.x;
             int y = p.y + m_ascent - w->m_ascent;
 #endif
             DWORD aoutline = w->m_style.alpha[2];
@@ -1168,11 +1173,13 @@ CRect CLine::PaintBody(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPoin
         CWord* w = GetNext(pos);
 
         if(w->m_fLineBreak) return(bbox); // should not happen since this class is just a line of text without any breaks
-
-        int x = p.x;
-#ifdef _VSMOD // patch m001. Vertical fontspacing
+#ifdef _VSMOD
+        // vpatch v002. Horizontal fontspacing
+        int x = p.x - w->m_style.mod_horizontalSpace;
+        // patch m001. Vertical fontspacing
         int y = p.y - w->m_style.mod_verticalSpace + m_ascent - w->m_ascent;
 #else
+        int x = p.x;
         int y = p.y + m_ascent - w->m_ascent;
 #endif
         // colors
@@ -1990,6 +1997,8 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
 #ifdef _VSMOD// patch m001. Vertical fontspacing
         else if(!cmd.Find(L"fsvp"))
             params.Add(cmd.Mid(4)), cmd = cmd.Left(4);
+        else if (!cmd.Find(L"fshp"))// vpatch v002. Horizontal fontspacing
+            params.Add(cmd.Mid(4)), cmd = cmd.Left(4);
 #endif
         else if(!cmd.Find(L"fs"))
             params.Add(cmd.Mid(2)), cmd = cmd.Left(2);
@@ -2564,6 +2573,13 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
             double dst = wcstod(p, NULL) * 8;
             double nx = CalcAnimation(dst, style.mod_verticalSpace, fAnimate);
             style.mod_verticalSpace = !p.IsEmpty() ? nx : org.mod_verticalSpace;
+        }
+        // vpatch v002. Horizontal fontspacing
+        else if (cmd == L"fshp")
+        {
+            double dst = wcstod(p, NULL) * 8;
+            double nx = CalcAnimation(dst, style.mod_horizontalSpace, fAnimate);
+            style.mod_horizontalSpace = !p.IsEmpty() ? nx : org.mod_horizontalSpace;
         }
 #endif
         else if(cmd == L"fs")

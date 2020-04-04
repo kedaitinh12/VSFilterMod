@@ -3285,6 +3285,8 @@ void STSStyle::SetDefault()
 #ifdef _VSMOD
     // patch m001. Vertical fontspacing
     mod_verticalSpace = 0;
+    // vpatch v002. Horizontal fontspacing
+    mod_horizontalSpace = 0;
     // patch m002. Z-coord
     mod_z = 0;
     // patch m003. random text points
@@ -3322,6 +3324,8 @@ bool STSStyle::operator == (STSStyle& s)
 #ifdef _VSMOD
            // patch m001. Vertical fontspacing
            && mod_verticalSpace == s.mod_verticalSpace
+           // vpatch v002. Horizontal fontspacing
+           && mod_horizontalSpace == s.mod_horizontalSpace
            // patch m002. Z-coord
            && mod_z == s.mod_z
            // patch m003. random text points
@@ -3386,6 +3390,8 @@ void STSStyle::mod_CopyStyleFrom(STSStyle& s)
 
     //patch m001. Vertical fontspacing
     mod_verticalSpace = s.mod_verticalSpace;
+    // vpatch v002. Horizontal fontspacing
+    mod_horizontalSpace = s.mod_horizontalSpace;
     //patch m002. Z-coord
     mod_z = s.mod_z;
     //patch m003. random text points
