@@ -131,11 +131,11 @@ void CWord::Paint(CPoint p, CPoint org)
 
         m_fDrawn = true;
 
-        if(!Rasterize(p.x & 7, p.y & 7, m_style.fBlur, m_style.fGaussianBlur)) return;
+        if(!Rasterize(p.x & 7, p.y & 7, m_style.fBlur, m_style.fGaussianBlurX, m_style.fGaussianBlurY)) return;
     }
     else if((m_p.x & 7) != (p.x & 7) || (m_p.y & 7) != (p.y & 7))
     {
-        Rasterize(p.x & 7, p.y & 7, m_style.fBlur, m_style.fGaussianBlur);
+        Rasterize(p.x & 7, p.y & 7, m_style.fBlur, m_style.fGaussianBlurX, m_style.fGaussianBlurY);
     }
 
     m_p = p;
@@ -1207,8 +1207,9 @@ CRect CLine::PaintBody(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPoin
 
         // move dividerpoint
         int bluradjust = 0;
-        if(w->m_style.fGaussianBlur > 0)
-            bluradjust += (int)(w->m_style.fGaussianBlur * 3 * 8 + 0.5) | 1;
+        double fGaussianBlur = max(w->m_style.fGaussianBlurX, w->m_style.fGaussianBlurY);
+        if(fGaussianBlur > 0)
+            bluradjust += (int)(fGaussianBlur * 3 * 8 + 0.5) | 1;
         if(w->m_style.fBlur)
             bluradjust += 8;
         double tx = w->m_style.fontAngleZ;
@@ -2038,6 +2039,10 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
             params.Add(cmd.Mid(5)), cmd = cmd.Left(5);
         else if(!cmd.Find(L"yshad"))
             params.Add(cmd.Mid(5)), cmd = cmd.Left(5);
+        else if (!cmd.Find(L"xblur"))
+            params.Add(cmd.Mid(5)), cmd = cmd.Left(5);
+        else if (!cmd.Find(L"yblur"))
+            params.Add(cmd.Mid(5)), cmd = cmd.Left(5);
 #ifdef _VSMOD // patch m002. Z-coord
         else if(!cmd.Find(L"z"))
             params.Add(cmd.Mid(1)), cmd = cmd.Left(1);
@@ -2285,10 +2290,15 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
         }
         else if(cmd == L"blur")
         {
-            double n = CalcAnimation(wcstod(p, NULL), style.fGaussianBlur, fAnimate);
-            style.fGaussianBlur = !p.IsEmpty()
-                                  ? (n < 0 ? 0 : n)
-                                      : org.fGaussianBlur;
+            double dst = wcstod(p, NULL);
+            double nx = CalcAnimation(dst, style.fGaussianBlurX, fAnimate);
+            style.fGaussianBlurX = !p.IsEmpty()
+                                  ? (nx < 0 ? 0 : nx)
+                                      : org.fGaussianBlurX;
+            double ny = CalcAnimation(dst, style.fGaussianBlurY, fAnimate);
+            style.fGaussianBlurY = !p.IsEmpty()
+                                    ? (ny < 0 ? 0 : ny)
+                                      : org.fGaussianBlurY;
         }
         else if(cmd == L"bord")
         {
@@ -2972,6 +2982,22 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
             style.shadowDepthY = !p.IsEmpty()
                                  ? ny
                                  : org.shadowDepthY;
+        }
+        else if (cmd == L"xblur")
+        {
+        double dst = wcstod(p, NULL);
+        double nx = CalcAnimation(dst, style.fGaussianBlurX, fAnimate);
+        style.fGaussianBlurX = !p.IsEmpty()
+            ? (nx < 0 ? 0 : nx)
+            : org.fGaussianBlurX;
+        }
+        else if (cmd == L"yblur")
+        {
+        double dst = wcstod(p, NULL);
+        double nx = CalcAnimation(dst, style.fGaussianBlurY, fAnimate);
+        style.fGaussianBlurY = !p.IsEmpty()
+            ? (nx < 0 ? 0 : nx)
+            : org.fGaussianBlurY;
         }
 #ifdef _VSMOD // patch m002. Z-coord
         else if(cmd == L"z")

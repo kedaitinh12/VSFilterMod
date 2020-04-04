@@ -158,7 +158,7 @@ public:
     bool	fUnderline;
     bool	fStrikeOut;
     int		fBlur;
-    double	fGaussianBlur;
+    double	fGaussianBlurX, fGaussianBlurY;
     double	fontAngleZ, fontAngleX, fontAngleY;
     double	fontShiftX, fontShiftY;
     int		relativeTo; // 0: window, 1: video, 2: undefined (~window)

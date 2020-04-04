@@ -713,7 +713,7 @@ void Rasterizer::DeleteOutlines()
     mOutline.clear();
 }
 
-bool Rasterizer::Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlur)
+bool Rasterizer::Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlurX, double fGaussianBlurY)
 {
     _TrashOverlay();
 
@@ -733,6 +733,14 @@ bool Rasterizer::Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlur)
     mOffsetY = mPathOffsetY - ysub;
 
     mWideBorder = (mWideBorder + 7)&~7;
+
+    double fGaussianBlur = max(fGaussianBlurX, fGaussianBlurY);
+
+    int direction = 0;
+    if (fGaussianBlurX != 0 && fGaussianBlurY == 0)
+        direction = 1;
+    else if (fGaussianBlurX == 0 && fGaussianBlurY != 0)
+        direction = 2;
 
     if(!mWideOutline.empty() || fBlur || fGaussianBlur > 0)
     {
@@ -756,7 +764,6 @@ bool Rasterizer::Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlur)
     }
 
     mOverlayWidth = ((width + 7) >> 3) + 1;
-    // fixed image height
     mOverlayHeight = ((height + 14) >> 3) + 1;
 
     mpOverlayBuffer = DNew byte[2 * mOverlayWidth * mOverlayHeight];
@@ -817,8 +824,10 @@ bool Rasterizer::Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlur)
 
             byte *src = mpOverlayBuffer + border;
 
-            SeparableFilterX<2>(src, tmp, mOverlayWidth, mOverlayHeight, pitch, filter.kernel, filter.width, filter.divisor);
-            SeparableFilterY<2>(tmp, src, mOverlayWidth, mOverlayHeight, pitch, filter.kernel, filter.width, filter.divisor);
+            
+
+            SeparableFilterX<2>(src, tmp, mOverlayWidth, mOverlayHeight, pitch, filter.kernel, filter.width, filter.divisor, direction);
+            SeparableFilterY<2>(tmp, src, mOverlayWidth, mOverlayHeight, pitch, filter.kernel, filter.width, filter.divisor, direction);
 
             delete[] tmp;
         }
