@@ -82,6 +82,7 @@ public:
     COLORREF	alphas[4]; // a
     COLORREF	color[4][4]; // vc (rgb is reverted to style.colors)
     BYTE		alpha[4][4]; // va
+    bool        bodyIsGradAlpha;
     int		mode[4];
 
 // for renderer

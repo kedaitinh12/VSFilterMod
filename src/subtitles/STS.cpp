@@ -3804,6 +3804,7 @@ void MOD_GRADIENT::clear()
     subpixx = 0;
     subpixy = 0;
     fadalpha = 0xFF;
+    bodyIsGradAlpha = false;
 }
 
 #include <math.h>
