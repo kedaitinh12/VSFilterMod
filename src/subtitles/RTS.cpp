@@ -1138,7 +1138,7 @@ CRect CLine::PaintOutline(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CP
             if(w->m_style.borderStyle == 0)
             {
 #ifdef _VSMOD // patch m004. gradient colors
-                bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw, !w->m_style.alpha[0] && !w->m_style.alpha[1] && !alpha, true, 2, w->m_style.mod_grad, mod_vc);
+                bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw, !w->m_style.alpha[0] && !w->m_style.alpha[1] && !alpha && !w->m_style.mod_grad.bodyIsGradAlpha, true, 2, w->m_style.mod_grad, mod_vc);
 #else
                 bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw, !w->m_style.alpha[0] && !w->m_style.alpha[1] && !alpha, true);
 #endif
@@ -2266,8 +2266,10 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                 //if (!fAnimate)
                 style.mod_grad.mode[i] = 1;
 
-                if (i == 0 || i == 1)
+                if (i == 0 || i == 1) {
                     style.mod_grad.mode[0] = style.mod_grad.mode[1] = 1;
+                    style.mod_grad.bodyIsGradAlpha = true;
+                }
             }
         }
 #endif
