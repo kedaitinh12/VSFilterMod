@@ -34,6 +34,15 @@
 
 #include <memory>
 
+std::unique_ptr<wchar_t[]> Utf8ToWideChar(const char* s_ansi)
+{
+    const size_t wchars_count = MultiByteToWideChar(CP_UTF8, 0, s_ansi, -1, NULL, 0);
+    const size_t bufsize = wchars_count + 1;
+    auto w_string = std::make_unique<wchar_t[]>(bufsize);
+    MultiByteToWideChar(CP_UTF8, 0, s_ansi, -1, w_string.get(), (int)bufsize);
+    return w_string;
+}
+
 //
 // Generic interface
 //
@@ -720,8 +729,8 @@ public:
 class CVobSubAvisynthFilter : public CVobSubFilter, public CAvisynthFilter
 {
 public:
-    CVobSubAvisynthFilter(PClip c, const char* fn, IScriptEnvironment* env)
-        : CVobSubFilter(CString(fn))
+    CVobSubAvisynthFilter(PClip c, const char* fn, IScriptEnvironment* env, bool utf8)
+        : CVobSubFilter(utf8 ? CString(Utf8ToWideChar(fn).get()) : CString(fn))
         , CAvisynthFilter(c, env)
     {
         if(!m_pSubPicProvider)
@@ -731,14 +740,17 @@ public:
 
 AVSValue __cdecl VobSubCreateS(AVSValue args, void* user_data, IScriptEnvironment* env)
 {
-    return(new CVobSubAvisynthFilter(args[0].AsClip(), args[1].AsString(), env));
+    bool utf8 = false;
+    if (args[2].Defined())
+        utf8 = args[2].AsBool(false);
+    return(new CVobSubAvisynthFilter(args[0].AsClip(), args[1].AsString(), env, utf8));
 }
 
 class CTextSubAvisynthFilter : public CTextSubFilter, public CAvisynthFilter
 {
 public:
-    CTextSubAvisynthFilter(PClip c, IScriptEnvironment* env, const char* fn, int CharSet = DEFAULT_CHARSET, float fps = -1, VFRTranslator *vfr = 0) //vfr patch
-        : CTextSubFilter(CString(fn), CharSet, fps)
+    CTextSubAvisynthFilter(PClip c, IScriptEnvironment* env, const char* fn, int CharSet = DEFAULT_CHARSET, float fps = -1, VFRTranslator *vfr = 0, bool utf8 = false) //vfr patch
+        : CTextSubFilter(utf8 ? CString(Utf8ToWideChar(fn).get()) : CString(fn), CharSet, fps)
         , CAvisynthFilter(c, env, vfr)
     {
         if(!m_pSubPicProvider)
@@ -762,13 +774,18 @@ AVSValue __cdecl TextSubCreateGeneral(AVSValue args, void* user_data, IScriptEnv
     if(args[4].Defined())
         vfr = GetVFRTranslator(args[4].AsString());
 
+    bool utf8 = false;
+    if (args[5].Defined())
+        utf8 = args[5].AsBool(false);
+
     return(new CTextSubAvisynthFilter(
                args[0].AsClip(),
                env,
                args[1].AsString(),
                args[2].AsInt(DEFAULT_CHARSET),
                args[3].AsFloat(-1),
-               vfr));
+               vfr,
+               utf8));
 }
 
 AVSValue __cdecl TextSubSwapUV(AVSValue args, void* user_data, IScriptEnvironment* env)
@@ -794,6 +811,10 @@ AVSValue __cdecl MaskSubCreate(AVSValue args, void* user_data, IScriptEnvironmen
     VFRTranslator *vfr = 0;
     if(args[6].Defined())
         vfr = GetVFRTranslator(args[6].AsString());
+
+    bool utf8 = false;
+    if (args[7].Defined())
+        utf8 = args[7].AsBool(false);
 
     AVSValue rgb32("RGB32");
     AVSValue fps(args[3].AsFloat(25));
@@ -823,16 +844,17 @@ AVSValue __cdecl MaskSubCreate(AVSValue args, void* user_data, IScriptEnvironmen
                args[0].AsString(),
                args[5].AsInt(DEFAULT_CHARSET),
                args[3].AsFloat(-1),
-               vfr));
+               vfr,
+               utf8));
 }
 
 extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit2(IScriptEnvironment* env)
 {
-    env->AddFunction("VobSub", "cs", VobSubCreateS, 0);
+    env->AddFunction("VobSub", "cs[utf8]b", VobSubCreateS, 0);
 #ifdef _VSMOD
-    env->AddFunction("TextSubMod", "c[file]s[charset]i[fps]f[vfr]s", TextSubCreateGeneral, 0);
+    env->AddFunction("TextSubMod", "c[file]s[charset]i[fps]f[vfr]s[utf8]b", TextSubCreateGeneral, 0);
     env->AddFunction("TextSubModSwapUV", "b", TextSubSwapUV, 0);
-    env->AddFunction("MaskSubMod", "[file]s[width]i[height]i[fps]f[length]i[charset]i[vfr]s", MaskSubCreate, 0);
+    env->AddFunction("MaskSubMod", "[file]s[width]i[height]i[fps]f[length]i[charset]i[vfr]s[utf8]b", MaskSubCreate, 0);
 #else
     env->AddFunction("TextSub", "c[file]s[charset]i[fps]f[vfr]s", TextSubCreateGeneral, 0);
     env->AddFunction("TextSubSwapUV", "b", TextSubSwapUV, 0);
@@ -855,14 +877,14 @@ namespace VapourSynth {
 
     class CTextSubVapourSynthFilter : public CTextSubFilter {
     public:
-        CTextSubVapourSynthFilter(const char * file, const int charset, const float fps, int * error) : CTextSubFilter(CString(file), charset, fps) {
+        CTextSubVapourSynthFilter(const wchar_t * file, const int charset, const float fps, int * error) : CTextSubFilter(CString(file), charset, fps) {
             *error = !m_pSubPicProvider ? 1 : 0;
         }
     };
 
     class CVobSubVapourSynthFilter : public CVobSubFilter {
     public:
-        CVobSubVapourSynthFilter(const char * file, int * error) : CVobSubFilter(CString(file)) {
+        CVobSubVapourSynthFilter(const wchar_t * file, int * error) : CVobSubFilter(CString(file)) {
             *error = !m_pSubPicProvider ? 1 : 0;
         }
     };
@@ -1295,15 +1317,10 @@ namespace VapourSynth {
         }
 
         std::string strfile;
-        const char * file = vsapi->propGetData(in, "file", 0, nullptr);
-        if (!file) file = "";
-
-        CA2WEX<> utf8file(file, CP_UTF8);
-        if (PathFileExistsW(utf8file))
-        {
-            strfile = CW2AEX<>(utf8file, CP_ACP);
-            file = strfile.c_str();
-        }
+        const char * _file = vsapi->propGetData(in, "file", 0, nullptr);
+        if (!_file) _file = "";
+        
+        std::unique_ptr<wchar_t[]> file = Utf8ToWideChar(_file);
 
         int charset = int64ToIntS(vsapi->propGetInt(in, "charset", 0, &err));
         if (err)
@@ -1325,11 +1342,11 @@ namespace VapourSynth {
         }
 
         if (filterName == "TextSubMod")
-            d.textsub = new CTextSubVapourSynthFilter { file, charset, fps, &err };
+            d.textsub = new CTextSubVapourSynthFilter { file.get(), charset, fps, &err };
         else
-            d.vobsub = new CVobSubVapourSynthFilter { file, &err };
+            d.vobsub = new CVobSubVapourSynthFilter { file.get(), &err };
         if (err) {
-            vsapi->setError(out, (filterName + ": can't open " + file).c_str());
+            vsapi->setError(out, (filterName + ": can't open " + _file).c_str());
             vsapi->freeNode(d.node);
             delete d.textsub;
             delete d.vobsub;
