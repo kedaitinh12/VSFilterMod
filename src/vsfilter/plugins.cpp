@@ -62,6 +62,9 @@ protected:
     CComPtr<ISubPicProvider> m_pSubPicProvider;
     DWORD_PTR m_SubPicProviderId;
 
+    CSimpleTextSubtitle::YCbCrMatrix m_script_selected_yuv;
+    CSimpleTextSubtitle::YCbCrRange m_script_selected_range;
+
 public:
     CFilter() : m_fps(-1), m_SubPicProviderId(0)
     {
@@ -92,7 +95,7 @@ public:
 
         if(!m_pSubPicQueue)
         {
-            CComPtr<ISubPicAllocator> pAllocator = new CMemSubPicAllocator(dst.type, size);
+            CComPtr<ISubPicAllocator> pAllocator = new CMemSubPicAllocator(dst.type, size, m_script_selected_yuv, m_script_selected_range);
 
             HRESULT hr;
             if(!(m_pSubPicQueue = new CSubPicQueueNoThread(pAllocator, &hr)) || FAILED(hr))
@@ -259,6 +262,9 @@ public:
                 m_pSubPicProvider = (ISubPicProvider*)rts;
                 if(rts->Open(CString(fn), CharSet)) SetFileName(fn);
                 else m_pSubPicProvider = NULL;
+
+                m_script_selected_yuv = rts->m_eYCbCrMatrix;
+                m_script_selected_range = rts->m_eYCbCrRange;
             }
         }
 
@@ -1295,6 +1301,7 @@ namespace VapourSynth {
 
         delete d->textsub;
         delete d->vobsub;
+        if (d->vfr) delete d->vfr;
 
         delete d;
     }
@@ -1316,11 +1323,17 @@ namespace VapourSynth {
             return;
         }
 
-        std::string strfile;
-        const char * _file = vsapi->propGetData(in, "file", 0, nullptr);
-        if (!_file) _file = "";
-        
-        std::unique_ptr<wchar_t[]> file = Utf8ToWideChar(_file);
+        const char* _file = vsapi->propGetData(in, "file", 0, nullptr);
+        int size = MultiByteToWideChar(CP_UTF8, 0, _file, -1, nullptr, 0);
+        wchar_t* file = new wchar_t[size];
+        MultiByteToWideChar(CP_UTF8, 0, _file, -1, file, size);
+        if (!PathFileExistsW(file))
+        {
+            delete[] file;
+            size = MultiByteToWideChar(CP_ACP, 0, _file, -1, nullptr, 0);
+            file = new wchar_t[size];
+            MultiByteToWideChar(CP_ACP, 0, _file, -1, file, size);
+        }
 
         int charset = int64ToIntS(vsapi->propGetInt(in, "charset", 0, &err));
         if (err)
@@ -1358,6 +1371,7 @@ namespace VapourSynth {
             d.accurate16bit = false;
 
         vsapi->createFilter(in, out, static_cast<const char *>(userData), vsfilterInit, vsfilterGetFrame, vsfilterFree, fmParallelRequests, 0, ud.release(), core);
+        delete[] file;
     }
 
     //////////////////////////////////////////

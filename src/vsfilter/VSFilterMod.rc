@@ -13,7 +13,7 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// ÐÙÑÀÀûÓï(ÐÙÑÀÀû) resources
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_HUN)
 LANGUAGE LANG_HUNGARIAN, SUBLANG_DEFAULT
@@ -32,12 +32,12 @@ END
 
 #endif    // APSTUDIO_INVOKED
 
-#endif    // ÐÙÑÀÀûÓï(ÐÙÑÀÀû) resources
+#endif    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
 /////////////////////////////////////////////////////////////////////////////
-// Ó¢Óï(ÃÀ¹ú) resources
+// Ó¢ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
@@ -88,12 +88,12 @@ BEGIN
             VALUE "Comments", "http://code.google.com/p/vsfiltermod/"
             VALUE "CompanyName", "MPC-HC Team"
             VALUE "FileDescription", "VobSub & TextSubMod filter for DirectShow/VirtualDub/Avisynth/VapourSynth"
-            VALUE "FileVersion", "2.5.2.1"
+            VALUE "FileVersion", "2.5.2.2"
             VALUE "InternalName", "VSFilter"
-            VALUE "LegalCopyright", "Copyright (C) 2001-2019 see AUTHORS file"
+            VALUE "LegalCopyright", "Copyright (C) 2001-2020 see AUTHORS file"
             VALUE "OriginalFilename", "VSFilterMod.dll"
             VALUE "ProductName", "VSFilterMod"
-            VALUE "ProductVersion", "2.5.2.1"
+            VALUE "ProductVersion", "2.5.2.2"
         END
     END
     BLOCK "VarFileInfo"
@@ -275,7 +275,7 @@ BEGIN
     LTEXT           "Spacing",IDC_STATIC,21,60,26,8
     EDITTEXT        IDC_EDIT3,64,58,34,14,ES_RIGHT | ES_AUTOHSCROLL
     CONTROL         "",IDC_SPIN3,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,97,58,11,14
-    LTEXT           "Angle (z,°)",IDC_STATIC,21,79,36,8
+    LTEXT           "Angle (z,ï¿½)",IDC_STATIC,21,79,36,8
     EDITTEXT        IDC_EDIT11,64,77,34,14,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
     CONTROL         "",IDC_SPIN10,"msctls_updown32",UDS_WRAP | UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,97,77,11,14
     LTEXT           "Scale (x,%)",IDC_STATIC,21,98,39,8
@@ -583,7 +583,7 @@ BEGIN
     IDS_RT_STYLE            "Style2"
 END
 
-#endif    // Ó¢Óï(ÃÀ¹ú) resources
+#endif    // Ó¢ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
@@ -593,7 +593,8 @@ END
 //
 // Generated from the TEXTINCLUDE 3 resource.
 //
-
+
+
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
 
