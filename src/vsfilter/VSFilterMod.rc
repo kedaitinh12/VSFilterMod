@@ -13,7 +13,7 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// ��������(������) resources
+// 匈牙利语(匈牙利) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_HUN)
 LANGUAGE LANG_HUNGARIAN, SUBLANG_DEFAULT
@@ -32,12 +32,12 @@ END
 
 #endif    // APSTUDIO_INVOKED
 
-#endif    // ��������(������) resources
+#endif    // 匈牙利语(匈牙利) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
 /////////////////////////////////////////////////////////////////////////////
-// Ӣ��(����) resources
+// 英语(美国) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
@@ -275,7 +275,7 @@ BEGIN
     LTEXT           "Spacing",IDC_STATIC,21,60,26,8
     EDITTEXT        IDC_EDIT3,64,58,34,14,ES_RIGHT | ES_AUTOHSCROLL
     CONTROL         "",IDC_SPIN3,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,97,58,11,14
-    LTEXT           "Angle (z,�)",IDC_STATIC,21,79,36,8
+    LTEXT           "Angle (z,?",IDC_STATIC,21,79,36,8
     EDITTEXT        IDC_EDIT11,64,77,34,14,ES_RIGHT | ES_AUTOHSCROLL | ES_NUMBER
     CONTROL         "",IDC_SPIN10,"msctls_updown32",UDS_WRAP | UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS | UDS_NOTHOUSANDS,97,77,11,14
     LTEXT           "Scale (x,%)",IDC_STATIC,21,98,39,8
@@ -583,7 +583,7 @@ BEGIN
     IDS_RT_STYLE            "Style2"
 END
 
-#endif    // Ӣ��(����) resources
+#endif    // 英语(美国) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

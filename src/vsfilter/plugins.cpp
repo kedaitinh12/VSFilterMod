@@ -1355,9 +1355,9 @@ namespace VapourSynth {
         }
 
         if (filterName == "TextSubMod")
-            d.textsub = new CTextSubVapourSynthFilter { file.get(), charset, fps, &err };
+            d.textsub = new CTextSubVapourSynthFilter { file, charset, fps, &err };
         else
-            d.vobsub = new CVobSubVapourSynthFilter { file.get(), &err };
+            d.vobsub = new CVobSubVapourSynthFilter { file, &err };
         if (err) {
             vsapi->setError(out, (filterName + ": can't open " + _file).c_str());
             vsapi->freeNode(d.node);
