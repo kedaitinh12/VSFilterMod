@@ -76,6 +76,7 @@ public:
     int typ;
     MOD_GRADIENT mod_grad;
     MOD_MOVEVC mod_vc;
+    MOD_BLEND mod_blendMode;
 #else
     byte* am;
 #endif
@@ -179,7 +180,7 @@ public:
     bool Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlurX, double fGaussianBlurY);
     int getOverlayWidth();
 #ifdef _VSMOD // patch m004. gradient colors
-    CRect Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int xsub, int ysub, const DWORD* switchpts, bool fBody, bool fBorder, int typ, MOD_GRADIENT& mod_grad, MOD_MOVEVC& mod_vc);
+    CRect Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int xsub, int ysub, const DWORD* switchpts, bool fBody, bool fBorder, int typ, MOD_GRADIENT& mod_grad, MOD_MOVEVC& mod_vc, MOD_BLEND mod_blendMode);
 #else
     CRect Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int xsub, int ysub, const DWORD* switchpts, bool fBody, bool fBorder);
 #endif

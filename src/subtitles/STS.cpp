@@ -3297,6 +3297,8 @@ void STSStyle::SetDefault()
     mod_fontOrient = 0;
     // vpatch v001. Orthogonal 2D projection
     mod_ortho = false;
+    // vpatch v003. blending mode
+    mod_blendMode = BLEND_NORMAL;
 #endif
 }
 
@@ -3340,6 +3342,8 @@ bool STSStyle::operator == (STSStyle& s)
            && mod_jitter == s.mod_jitter
             // vpatch v001. Orthogonal 2D projection
            && mod_ortho == s.mod_ortho
+            // vpatch v003. blending mode
+           && mod_blendMode == s.mod_blendMode
 #endif
            && IsFontStyleEqual(s));
 }
@@ -3406,6 +3410,8 @@ void STSStyle::mod_CopyStyleFrom(STSStyle& s)
     mod_jitter = s.mod_jitter;
     // vpatch v001. Orthogonal 2D projection
     mod_ortho = s.mod_ortho;
+    // vpatch v003. blending mode
+    mod_blendMode = s.mod_blendMode;
     // font
     charSet = s.charSet;
     fontName = s.fontName;
@@ -3892,7 +3898,6 @@ DWORD MOD_GRADIENT::getmixcolor(int tx, int ty, int i) // too slow T.T
             a = (b_images[i].bpp == 4) ? (((dst21[3] * (8 - subpixx) + dst22[3] * subpixx) >> 3) * (subpixy) + ((a * (8 - subpixx) + dst12[3] * subpixx) >> 3) * (8 - subpixy)) >> 3 : 0xFF;
         }
         // alpha fix
-#define div_255_fast(x) (((x) + 1 + (((x) + 1) >> 8)) >> 8)
         BYTE al = div_255_fast(div_255_fast(a * b_images[i].alpha) * (0xff - fadalpha));
         colorb = al << 24 | r << 16 | g << 8 | b;
 

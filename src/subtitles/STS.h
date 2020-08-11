@@ -26,7 +26,21 @@
 #include "TextFile.h"
 #include "GFN.h"
 
+#define div_255_fast(x) (((x) + 1 + (((x) + 1) >> 8)) >> 8)
+
 typedef enum {TIME, FRAME} tmode; // the meaning of STSEntry::start/end
+
+#ifdef _VSMOD // vpatch v003. blending mode
+typedef enum {
+    BLEND_NORMAL,
+    BLEND_OVERLAY,
+    BLEND_ADD,
+    BLEND_SUBSTRACT,
+    BLEND_MULTIPLY,
+    BLEND_SCREEN,
+    BLEND_DIFFERENCE
+} MOD_BLEND; // blending mode
+#endif
 
 #ifdef _VSMOD // patch m003. random text points
 class MOD_RANDOM
@@ -182,6 +196,8 @@ public:
     MOD_JITTER mod_jitter;
     // vpatch v001. Orthogonal 2D projection
     bool mod_ortho;
+    // vpatch v003. blending mode
+    MOD_BLEND mod_blendMode;
 #endif
 
     STSStyle();
