@@ -871,41 +871,124 @@ bool Rasterizer::Rasterize(int xsub, int ysub, int fBlur, double fGaussianBlurX,
 
 ///////////////////////////////////////////////////////////////////////////
 
-static __forceinline void pixmix(DWORD *dst, DWORD color, DWORD alpha)
+static __forceinline DWORD blendMixColor(DWORD* dst, DWORD* color, MOD_BLEND mod_blendMode) {
+    if (mod_blendMode == BLEND_NORMAL) {
+        return *color;
+    }
+    DWORD c_rb = (*color & 0x00ff00ff);
+    DWORD c_g = (*color & 0x0000ff00);
+    DWORD d_rb = (*dst & 0x00ff00ff);
+    DWORD d_g = (*dst & 0x0000ff00);
+    DWORD blend_rb, blend_g;
+    if (mod_blendMode == BLEND_OVERLAY) {
+        DWORD tmp_r, tmp_g, tmp_b;
+        if (((d_rb >> 16) & 0x000000ff) < 0x80) {
+            tmp_r = 2 * div_255_fast(((c_rb >> 16) & 0x000000ff) * ((d_rb >> 16) & 0x000000ff));
+        }
+        else {
+            tmp_r = 0xff - 2 * div_255_fast((0x000000ff - ((c_rb >> 16) & 0x000000ff)) * (0x000000ff - ((d_rb >> 16) & 0x000000ff)));
+        }
+        if ((d_g >> 8) < 0x80) {
+            tmp_g = 2 * div_255_fast((c_g >> 8) * (d_g >> 8));
+        }
+        else {
+            tmp_g = 0xff - 2 * div_255_fast((0x000000ff - (c_g >> 8)) * (0x000000ff - (d_g >> 8)));
+        }
+        if ((d_rb & 0x000000ff) < 0x80) {
+            tmp_b = 2 * div_255_fast((c_rb & 0x000000ff) * (d_rb & 0x000000ff));
+        }
+        else {
+            tmp_b = 0xff - 2 * div_255_fast((0x000000ff - (c_rb & 0x000000ff)) * (0x000000ff - (d_rb & 0x000000ff)));
+        }
+        blend_rb = tmp_r << 16 | tmp_b;
+        blend_g = tmp_g << 8;
+    }
+    else if (mod_blendMode == BLEND_ADD) {
+        DWORD tmp_r = (c_rb & 0x00ff0000) + (d_rb & 0x00ff0000);
+        DWORD tmp_g = c_g + d_g;
+        DWORD tmp_b = (c_rb & 0x000000ff) + (d_rb & 0x000000ff);
+        tmp_r = tmp_r <= 0x00ff0000 ? tmp_r : 0x00ff0000;
+        tmp_g = tmp_g <= 0x0000ff00 ? tmp_g : 0x0000ff00;
+        tmp_b = tmp_b <= 0x000000ff ? tmp_b : 0x000000ff;
+        blend_rb = tmp_r | tmp_b;
+        blend_g = tmp_g;
+    }
+    else if (mod_blendMode == BLEND_SUBSTRACT) {
+        DWORD tmp_r = (c_rb & 0x00ff0000) > (d_rb & 0x00ff0000) ? (c_rb & 0x00ff0000) - (d_rb & 0x00ff0000) : 0;
+        DWORD tmp_g = c_g > d_g ? c_g - d_g : 0;
+        DWORD tmp_b = (c_rb & 0x000000ff) > (d_rb & 0x000000ff) ? (c_rb & 0x000000ff) - (d_rb & 0x000000ff) : 0;
+        blend_rb = tmp_r | tmp_b;
+        blend_g = tmp_g;
+    }
+    else if (mod_blendMode == BLEND_MULTIPLY) {
+        DWORD tmp_r = div_255_fast(((c_rb >> 16) & 0x000000ff) * ((d_rb >> 16) & 0x000000ff));
+        DWORD tmp_g = div_255_fast((c_g >> 8) * (d_g >> 8));
+        DWORD tmp_b = div_255_fast((c_rb & 0x000000ff) * (d_rb & 0x000000ff));
+        blend_rb = tmp_r << 16 | tmp_b;
+        blend_g = tmp_g << 8;
+    }
+    else if (mod_blendMode == BLEND_SCREEN) {
+        DWORD tmp_r = 0xff - div_255_fast((0x000000ff - ((c_rb >> 16) & 0x000000ff)) * (0x000000ff - ((d_rb >> 16) & 0x000000ff)));
+        DWORD tmp_g = 0xff - div_255_fast((0x000000ff - (c_g >> 8)) * (0x000000ff - (d_g >> 8)));
+        DWORD tmp_b = 0xff - div_255_fast((0x000000ff - (c_rb & 0x000000ff)) * (0x000000ff - (d_rb & 0x000000ff)));
+        blend_rb = tmp_r << 16 | tmp_b;
+        blend_g = tmp_g << 8;
+    }
+    else if (mod_blendMode == BLEND_DIFFERENCE) {
+        DWORD tmp_r = (c_rb & 0x00ff0000) > (d_rb & 0x00ff0000) ? (c_rb & 0x00ff0000) - (d_rb & 0x00ff0000) : (d_rb & 0x00ff0000) - (c_rb & 0x00ff0000);
+        DWORD tmp_g = c_g > d_g ? c_g - d_g : d_g - c_g;
+        DWORD tmp_b = (c_rb & 0x000000ff) > (d_rb & 0x000000ff) ? (c_rb & 0x000000ff) - (d_rb & 0x000000ff) : (d_rb & 0x000000ff) - (c_rb & 0x000000ff);
+        blend_rb = tmp_r | tmp_b;
+        blend_g = tmp_g;
+    }
+    else {
+        blend_rb = c_rb;
+        blend_g = c_g;
+    }
+    return blend_rb | blend_g;
+}
+
+static __forceinline void pixmix(DWORD *dst, DWORD color, DWORD alpha, MOD_BLEND mod_blendMode = BLEND_NORMAL)
 {
     DWORD a = (((alpha) * (color >> 24)) >> 6) & 0xff;
     DWORD ia = 256 - a;
     a += 1;
 
-    DWORD tmp = (((((*dst >> 8) & 0x00ff0000) * ia) & 0xff000000) >> 24) & 0xFF;
-    *dst = ((((*dst & 0x00ff00ff) * ia + (color & 0x00ff00ff) * a) & 0xff00ff00) >> 8)
-           | ((((*dst & 0x0000ff00) * ia + (color & 0x0000ff00) * a) & 0x00ff0000) >> 8)
+    DWORD blendColor = blendMixColor(dst, &color, mod_blendMode);
+
+    //DWORD tmp = (((((*dst >> 8) & 0x00ff0000) * ia) & 0xff000000) >> 24) & 0xFF;
+    *dst = ((((*dst & 0x00ff00ff) * ia + (blendColor & 0x00ff00ff) * a) & 0xff00ff00) >> 8)
+           | ((((*dst & 0x0000ff00) * ia + (blendColor & 0x0000ff00) * a) & 0x00ff0000) >> 8)
            | ((((*dst >> 8) & 0x00ff0000) * ia) & 0xff000000);
 }
 
-static __forceinline void pixmix2(DWORD *dst, DWORD color, DWORD shapealpha, DWORD clipalpha)
+static __forceinline void pixmix2(DWORD *dst, DWORD color, DWORD shapealpha, DWORD clipalpha, MOD_BLEND mod_blendMode = BLEND_NORMAL)
 {
     DWORD a = (((shapealpha) * (clipalpha) * (color >> 24)) >> 12) & 0xff;
     DWORD ia = 256 - a;
     a += 1;
 
-    *dst = ((((*dst & 0x00ff00ff) * ia + (color & 0x00ff00ff) * a) & 0xff00ff00) >> 8)
-           | ((((*dst & 0x0000ff00) * ia + (color & 0x0000ff00) * a) & 0x00ff0000) >> 8)
+    DWORD blendColor = blendMixColor(dst, &color, mod_blendMode);
+
+    *dst = ((((*dst & 0x00ff00ff) * ia + (blendColor & 0x00ff00ff) * a) & 0xff00ff00) >> 8)
+           | ((((*dst & 0x0000ff00) * ia + (blendColor & 0x0000ff00) * a) & 0x00ff0000) >> 8)
            | ((((*dst >> 8) & 0x00ff0000) * ia) & 0xff000000);
 }
 
 #include <xmmintrin.h>
 #include <emmintrin.h>
 
-static __forceinline void pixmix_sse2(DWORD* dst, DWORD color, DWORD alpha)
+static __forceinline void pixmix_sse2(DWORD* dst, DWORD color, DWORD alpha, MOD_BLEND mod_blendMode = BLEND_NORMAL)
 {
     alpha = (((alpha) * (color >> 24)) >> 6) & 0xff;
     color &= 0xffffff;
 
+    DWORD blendColor = blendMixColor(dst, &color, mod_blendMode); // TODO: use sse2
+
     __m128i zero = _mm_setzero_si128();
     __m128i a = _mm_set1_epi32(((alpha + 1) << 16) | (0x100 - alpha));
     __m128i d = _mm_unpacklo_epi8(_mm_cvtsi32_si128(*dst), zero);
-    __m128i s = _mm_unpacklo_epi8(_mm_cvtsi32_si128(color), zero);
+    __m128i s = _mm_unpacklo_epi8(_mm_cvtsi32_si128(blendColor), zero);
     __m128i r = _mm_unpacklo_epi16(d, s);
 
     r = _mm_madd_epi16(r, a);
@@ -916,15 +999,17 @@ static __forceinline void pixmix_sse2(DWORD* dst, DWORD color, DWORD alpha)
     *dst = (DWORD)_mm_cvtsi128_si32(r);
 }
 
-static __forceinline void pixmix2_sse2(DWORD* dst, DWORD color, DWORD shapealpha, DWORD clipalpha)
+static __forceinline void pixmix2_sse2(DWORD* dst, DWORD color, DWORD shapealpha, DWORD clipalpha, MOD_BLEND mod_blendMode = BLEND_NORMAL)
 {
     DWORD alpha = (((shapealpha) * (clipalpha) * (color >> 24)) >> 12) & 0xff;
     color &= 0xffffff;
 
+    DWORD blendColor = blendMixColor(dst, &color, mod_blendMode); // TODO: use sse2
+
     __m128i zero = _mm_setzero_si128();
     __m128i a = _mm_set1_epi32(((alpha + 1) << 16) | (0x100 - alpha));
     __m128i d = _mm_unpacklo_epi8(_mm_cvtsi32_si128(*dst), zero);
-    __m128i s = _mm_unpacklo_epi8(_mm_cvtsi32_si128(color), zero);
+    __m128i s = _mm_unpacklo_epi8(_mm_cvtsi32_si128(blendColor), zero);
     __m128i r = _mm_unpacklo_epi16(d, s);
 
     r = _mm_madd_epi16(r, a);
@@ -981,7 +1066,7 @@ void Rasterizer::Draw_noAlpha_spFF_Body_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < rnfo.w; ++wt)
-            pixmix(&dst[wt], color, s[wt*2]);
+            pixmix(&dst[wt], color, s[wt*2], rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1005,7 +1090,7 @@ void Rasterizer::Draw_noAlpha_spFF_noBody_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < rnfo.w; ++wt)
-            pixmix(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]));
+            pixmix(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
 
         dst = (DWORD*)((char *)dst + rnfo.pitch);
@@ -1028,9 +1113,9 @@ void Rasterizer::Draw_noAlpha_sp_Body_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix(&dst[wt], color, s[wt*2]);
+            pixmix(&dst[wt], color, s[wt*2], rnfo.mod_blendMode);
         for(int wt = gran; wt < rnfo.w; ++wt)
-            pixmix(&dst[wt], color2, s[wt*2]);
+            pixmix(&dst[wt], color2, s[wt*2], rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1049,9 +1134,9 @@ void Rasterizer::Draw_noAlpha_sp_noBody_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]));
+            pixmix(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         for(int wt = gran; wt < rnfo.w; ++wt)
-            pixmix(&dst[wt], color2, safe_subtract(src[wt*2+1], src[wt*2]));
+            pixmix(&dst[wt], color2, safe_subtract(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1078,7 +1163,7 @@ void Rasterizer::Draw_Alpha_spFF_Body_0(RasterizerNfo& rnfo)
     {
         for(int wt = 0; wt < rnfo.w; ++wt)
 #ifdef _VSMOD // patch m006. moveable vector clip
-            pixmix2(&dst[wt], color, s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], color, s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
 #else
             pixmix2(&dst[wt], color, s[wt*2], am[wt]);
         am += rnfo.spdw;
@@ -1107,9 +1192,9 @@ void Rasterizer::Draw_Alpha_spFF_noBody_0(RasterizerNfo& rnfo)
     {
 #ifdef _VSMOD // patch m006. moveable vector clip
         for(int wt = 0; wt < gran; ++wt)
-            pixmix2(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         for(int wt = gran; wt < rnfo.w; ++wt)
-            pixmix2(&dst[wt], color2, safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], color2, safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
 #else
         for(int wt = 0; wt < gran; ++wt)
             pixmix2(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]), am[wt]);
@@ -1140,7 +1225,7 @@ void Rasterizer::Draw_Alpha_sp_Body_0(RasterizerNfo& rnfo)
         for(int wt = 0; wt < rnfo.w; ++wt)
         {
 #ifdef _VSMOD // patch m006. moveable vector clip
-            pixmix2(&dst[wt], color, s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], color, s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         }
 #else
             pixmix2(&dst[wt], color, s[wt*2], am[wt]);
@@ -1171,9 +1256,9 @@ void Rasterizer::Draw_Alpha_sp_noBody_0(RasterizerNfo& rnfo)
     {
 #ifdef _VSMOD // patch m006. moveable vector clip
         for(int wt = 0; wt < gran; ++wt)
-            pixmix2(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         for(int wt = gran; wt < rnfo.w; ++wt)
-            pixmix2(&dst[wt], color2, safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], color2, safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
 #else
         for(int wt = 0; wt < gran; ++wt)
             pixmix2(&dst[wt], color, safe_subtract(src[wt*2+1], src[wt*2]), am[wt]);
@@ -1201,7 +1286,7 @@ void Rasterizer::Draw_noAlpha_spFF_Body_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < rnfo.w; ++wt)
-            pixmix_sse2(&dst[wt], color, s[wt*2]);
+            pixmix_sse2(&dst[wt], color, s[wt*2], rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1226,7 +1311,7 @@ void Rasterizer::Draw_noAlpha_spFF_noBody_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < rnfo.w; ++wt)
-            pixmix_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]));
+            pixmix_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
 
         dst = (DWORD*)((char *)dst + rnfo.pitch);
@@ -1249,9 +1334,9 @@ void Rasterizer::Draw_noAlpha_sp_Body_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix_sse2(&dst[wt], color, s[wt*2]);
+            pixmix_sse2(&dst[wt], color, s[wt*2], rnfo.mod_blendMode);
         for(int wt = gran; wt < rnfo.w; ++wt)
-            pixmix_sse2(&dst[wt], color2, s[wt*2]);
+            pixmix_sse2(&dst[wt], color2, s[wt*2], rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1270,9 +1355,9 @@ void Rasterizer::Draw_noAlpha_sp_noBody_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]));
+            pixmix_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         for(int wt = gran; wt < rnfo.w; ++wt)
-            pixmix_sse2(&dst[wt], color2, safe_subtract_sse2(src[wt*2+1], src[wt*2]));
+            pixmix_sse2(&dst[wt], color2, safe_subtract_sse2(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1299,7 +1384,7 @@ void Rasterizer::Draw_Alpha_spFF_Body_sse2(RasterizerNfo& rnfo)
     {
         for(int wt = 0; wt < rnfo.w; ++wt)
 #ifdef _VSMOD // patch m006. moveable vector clip
-            pixmix2_sse2(&dst[wt], color, s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], color, s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
 #else
             pixmix2_sse2(&dst[wt], color, s[wt*2], am[wt]);
         am += rnfo.spdw;
@@ -1326,7 +1411,7 @@ void Rasterizer::Draw_Alpha_spFF_noBody_sse2(RasterizerNfo& rnfo)
     {
         for(int wt = 0; wt < rnfo.w; ++wt)
 #ifdef _VSMOD // patch m006. moveable vector clip
-            pixmix2_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
 #else
             pixmix2_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), am[wt]);
         am += rnfo.spdw;
@@ -1356,9 +1441,9 @@ void Rasterizer::Draw_Alpha_sp_Body_sse2(RasterizerNfo& rnfo)
     {
 #ifdef _VSMOD // patch m006. moveable vector clip
         for(int wt = 0; wt < gran; ++wt)
-            pixmix2_sse2(&dst[wt], color, s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], color, s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         for(int wt = gran; wt < rnfo.w; ++wt)
-            pixmix2_sse2(&dst[wt], color2, s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], color2, s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
 #else
         for(int wt = 0; wt < gran; ++wt)
             pixmix2_sse2(&dst[wt], color, s[wt*2], am[wt]);
@@ -1391,9 +1476,9 @@ void Rasterizer::Draw_Alpha_sp_noBody_sse2(RasterizerNfo& rnfo)
     {
 #ifdef _VSMOD // patch m006. moveable vector clip
         for(int wt = 0; wt < gran; ++wt)
-            pixmix2_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         for(int wt = gran; wt < rnfo.w; ++wt)
-            pixmix2_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
 #else
         for(int wt = 0; wt < gran; ++wt)
             pixmix2_sse2(&dst[wt], color, safe_subtract_sse2(src[wt*2+1], src[wt*2]), am[wt]);
@@ -1421,7 +1506,7 @@ void Rasterizer::Draw_Grad_noAlpha_spFF_Body_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < w; ++wt)
-            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, typ), s[wt*2]);
+            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, typ), s[wt*2], rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1441,7 +1526,7 @@ void Rasterizer::Draw_Grad_noAlpha_spFF_noBody_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < w; ++wt)
-            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, typ), safe_subtract(src[wt*2+1], src[wt*2]));
+            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, typ), safe_subtract(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
 
         dst = (DWORD*)((char *)dst + rnfo.pitch);
@@ -1463,9 +1548,9 @@ void Rasterizer::Draw_Grad_noAlpha_sp_Body_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, 0), s[wt*2]);
+            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, 0), s[wt*2], rnfo.mod_blendMode);
         for(int wt = gran; wt < w; ++wt)
-            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, 1), s[wt*2]);
+            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, 1), s[wt*2], rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1486,9 +1571,9 @@ void Rasterizer::Draw_Grad_noAlpha_sp_noBody_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, 0), safe_subtract(src[wt*2+1], src[wt*2]));
+            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, 0), safe_subtract(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         for(int wt = gran; wt < w; ++wt)
-            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, 1), safe_subtract(src[wt*2+1], src[wt*2]));
+            pixmix(&dst[wt], mod_grad.getmixcolor(wt, h, 1), safe_subtract(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1508,7 +1593,7 @@ void Rasterizer::Draw_Grad_Alpha_spFF_Body_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < w; ++wt)
-            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1528,7 +1613,7 @@ void Rasterizer::Draw_Grad_Alpha_spFF_noBody_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < w; ++wt)
-            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1550,9 +1635,9 @@ void Rasterizer::Draw_Grad_Alpha_sp_Body_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         for(int wt = gran; wt < w; ++wt)
-            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1574,9 +1659,9 @@ void Rasterizer::Draw_Grad_Alpha_sp_noBody_0(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         for(int wt = gran; wt < w; ++wt)
-            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), safe_subtract(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1597,7 +1682,7 @@ void Rasterizer::Draw_Grad_noAlpha_spFF_Body_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < w; ++wt)
-            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), s[wt*2]);
+            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), s[wt*2], rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1617,7 +1702,7 @@ void Rasterizer::Draw_Grad_noAlpha_spFF_noBody_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < w; ++wt)
-            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), safe_subtract_sse2(src[wt*2+1], src[wt*2]));
+            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), safe_subtract_sse2(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
 
         dst = (DWORD*)((char *)dst + rnfo.pitch);
@@ -1638,9 +1723,9 @@ void Rasterizer::Draw_Grad_noAlpha_sp_Body_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), s[wt*2]);
+            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), s[wt*2], rnfo.mod_blendMode);
         for(int wt = gran; wt < w; ++wt)
-            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), s[wt*2]);
+            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), s[wt*2], rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1660,9 +1745,9 @@ void Rasterizer::Draw_Grad_noAlpha_sp_noBody_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), safe_subtract_sse2(src[wt*2+1], src[wt*2]));
+            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), safe_subtract_sse2(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         for(int wt = gran; wt < w; ++wt)
-            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), safe_subtract_sse2(src[wt*2+1], src[wt*2]));
+            pixmix_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), safe_subtract_sse2(src[wt*2+1], src[wt*2]), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1683,7 +1768,7 @@ void Rasterizer::Draw_Grad_Alpha_spFF_Body_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < w; ++wt)
-            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1704,7 +1789,7 @@ void Rasterizer::Draw_Grad_Alpha_spFF_noBody_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < w; ++wt)
-            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, typ), safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1725,9 +1810,9 @@ void Rasterizer::Draw_Grad_Alpha_sp_Body_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         for(int wt = gran; wt < w; ++wt)
-            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), s[wt*2], mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), s[wt*2], mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         s += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1748,9 +1833,9 @@ void Rasterizer::Draw_Grad_Alpha_sp_noBody_sse2(RasterizerNfo& rnfo)
     while(h--)
     {
         for(int wt = 0; wt < gran; ++wt)
-            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 0), safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         for(int wt = gran; wt < w; ++wt)
-            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h));
+            pixmix2_sse2(&dst[wt], mod_grad.getmixcolor(wt, h, 1), safe_subtract_sse2(src[wt*2+1], src[wt*2]), mod_vc.GetAlphaValue(wt, h), rnfo.mod_blendMode);
         src += 2 * rnfo.overlayp;
         dst = (DWORD*)((char *)dst + rnfo.pitch);
     }
@@ -1767,7 +1852,7 @@ void Rasterizer::Draw_Grad_Alpha_sp_noBody_sse2(RasterizerNfo& rnfo)
 // fBorder tells whether to render the border of the subs.
 #ifdef _VSMOD // patch m004. gradient colors
 CRect Rasterizer::Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int xsub, int ysub,
-                       const DWORD* switchpts, bool fBody, bool fBorder, int typ, MOD_GRADIENT& mod_grad, MOD_MOVEVC& mod_vc)
+                       const DWORD* switchpts, bool fBody, bool fBorder, int typ, MOD_GRADIENT& mod_grad, MOD_MOVEVC& mod_vc, MOD_BLEND mod_blendMode)
 #else
 CRect Rasterizer::Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int xsub, int ysub,
                        const DWORD* switchpts, bool fBody, bool fBorder)
@@ -1814,6 +1899,7 @@ CRect Rasterizer::Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int x
 
     // CPUID from VDub
     bool fSSE2 = !!(g_cpuid.m_flags & CCpuID::sse2);
+    //bool fSSE2 = false;
 
 #ifdef _VSMOD // patch m006. moveable vector clip
     mod_vc.hfull = h;
@@ -1850,6 +1936,7 @@ CRect Rasterizer::Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int x
     rnfo.mod_grad.xoffset = xo;
     rnfo.mod_grad.yoffset = yo;
     rnfo.typ = typ;
+    rnfo.mod_blendMode = mod_blendMode; // vpatch v003. blending mode
 #else
     // The complex "vector clip mask" I think.
     rnfo.am = pAlphaMask + spd.w * y + x;

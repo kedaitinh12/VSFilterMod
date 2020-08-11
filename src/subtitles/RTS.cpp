@@ -1055,7 +1055,7 @@ CRect CLine::PaintShadow(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPo
 #ifdef _VSMOD // patch m004. gradient colors
                 bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw,
                                 w->m_ktype > 0 || w->m_style.alpha[0] < 0xff,
-                                (w->m_style.outlineWidthX + w->m_style.outlineWidthY > 0) && !(w->m_ktype == 2 && time < w->m_kstart), 3, w->m_style.mod_grad, mod_vc);
+                                (w->m_style.outlineWidthX + w->m_style.outlineWidthY > 0) && !(w->m_ktype == 2 && time < w->m_kstart), 3, w->m_style.mod_grad, mod_vc, w->m_style.mod_blendMode);
 #else
                 bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw,
                                 w->m_ktype > 0 || w->m_style.alpha[0] < 0xff,
@@ -1065,7 +1065,7 @@ CRect CLine::PaintShadow(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPo
             else if(w->m_style.borderStyle == 1 && w->m_pOpaqueBox)
             {
 #ifdef _VSMOD // patch m004. gradient colors
-                bbox |= w->m_pOpaqueBox->Draw(spd, clipRect, pAlphaMask, x, y, sw, true, false, 3, w->m_style.mod_grad, mod_vc);
+                bbox |= w->m_pOpaqueBox->Draw(spd, clipRect, pAlphaMask, x, y, sw, true, false, 3, w->m_style.mod_grad, mod_vc, w->m_style.mod_blendMode);
 #else
                 bbox |= w->m_pOpaqueBox->Draw(spd, clipRect, pAlphaMask, x, y, sw, true, false);
 #endif
@@ -1124,7 +1124,7 @@ CRect CLine::PaintOutline(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CP
             if(w->m_style.borderStyle == 0)
             {
 #ifdef _VSMOD // patch m004. gradient colors
-                bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw, !w->m_style.alpha[0] && !w->m_style.alpha[1] && !alpha && !w->m_style.mod_grad.bodyIsGradAlpha, true, 2, w->m_style.mod_grad, mod_vc);
+                bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw, !w->m_style.alpha[0] && !w->m_style.alpha[1] && !alpha && !w->m_style.mod_grad.bodyIsGradAlpha, true, 2, w->m_style.mod_grad, mod_vc, w->m_style.mod_blendMode);
 #else
                 bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw, !w->m_style.alpha[0] && !w->m_style.alpha[1] && !alpha, true);
 #endif
@@ -1132,7 +1132,7 @@ CRect CLine::PaintOutline(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CP
             else if(w->m_style.borderStyle == 1 && w->m_pOpaqueBox)
             {
 #ifdef _VSMOD // patch m004. gradient colors
-                bbox |= w->m_pOpaqueBox->Draw(spd, clipRect, pAlphaMask, x, y, sw, true, false, 2, w->m_style.mod_grad, mod_vc);
+                bbox |= w->m_pOpaqueBox->Draw(spd, clipRect, pAlphaMask, x, y, sw, true, false, 2, w->m_style.mod_grad, mod_vc, w->m_style.mod_blendMode);
 #else
                 bbox |= w->m_pOpaqueBox->Draw(spd, clipRect, pAlphaMask, x, y, sw, true, false);
 #endif
@@ -1239,7 +1239,7 @@ CRect CLine::PaintBody(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPoin
         sw[3] = (int)(w->m_style.outlineWidthX + t * w->getOverlayWidth() + t * bluradjust) >> 3;
 
 #ifdef _VSMOD // patch m004. gradient colors
-        bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw, true, false, 0, w->m_style.mod_grad, mod_vc);
+        bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw, true, false, 0, w->m_style.mod_grad, mod_vc, w->m_style.mod_blendMode);
 #else
         bbox |= w->Draw(spd, clipRect, pAlphaMask, x, y, sw, true, false);
 #endif
@@ -1948,6 +1948,10 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
             params.Add(cmd.Mid(4)), cmd = cmd.Left(4);
         else if(!cmd.Find(L"be"))
             params.Add(cmd.Mid(2)), cmd = cmd.Left(2);
+#ifdef _VSMOD
+        else if (!cmd.Find(L"blend")) // vpatch v003. blending mode
+            params.Add(cmd.Mid(5)), cmd = cmd.Left(5);
+#endif
         else if(!cmd.Find(L"b"))
             params.Add(cmd.Mid(1)), cmd = cmd.Left(1);
         else if(!cmd.Find(L"clip"))
@@ -3030,6 +3034,24 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
             style.mod_ortho = !p.IsEmpty()
                 ? (n == 0 ? false : n == 1 ? true : org.mod_ortho)
                 : org.mod_ortho;
+        }
+        else if (cmd == L"blend") // vpatch v003. blending mode
+        {
+            MOD_BLEND mode = org.mod_blendMode;
+            if (p.GetLength()>2) {
+                if (p == L"over") mode = BLEND_OVERLAY;
+                else if (p == L"add") mode = BLEND_ADD;
+                else if (p == L"sub") mode = BLEND_SUBSTRACT;
+                else if (p == L"mult") mode = BLEND_MULTIPLY;
+                else if (p == L"scr") mode = BLEND_SCREEN;
+                else if (p == L"diff") mode = BLEND_DIFFERENCE;
+            }
+            else {
+                mode = (MOD_BLEND)wcstol(p, NULL, 10);
+            }
+            style.mod_blendMode = !p.IsEmpty()
+                ? mode
+                : org.mod_blendMode;
         }
 #endif
     }
