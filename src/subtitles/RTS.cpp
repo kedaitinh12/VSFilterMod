@@ -75,7 +75,7 @@ CWord::CWord(STSStyle& style, CStringW str, int ktype, int kstart, int kend, dou
     , m_scalex(scalex), m_scaley(scaley)
     , m_fDrawn(false), m_p(INT_MAX, INT_MAX)
     , m_fLineBreak(false), m_fWhiteSpaceChar(false)
-    , m_pOpaqueBox(NULL)
+    , m_pOpaqueBox(NULL), isOpaqueBox(false)
 {
     if(str.IsEmpty())
     {
@@ -151,8 +151,8 @@ void CWord::Paint(CPoint p, CPoint org)
 
 void CWord::Transform(CPoint org)
 {
-    double scalex = m_style.fontScaleX / 100;
-    double scaley = m_style.fontScaleY / 100;
+    double scalex = isOpaqueBox ? 1 : m_style.fontScaleX / 100;
+    double scaley = isOpaqueBox ? 1 : m_style.fontScaleY / 100;
     const double xzoomf = m_scalex * 20000.0;
     const double yzoomf = m_scaley * 20000.0;
 
@@ -549,6 +549,7 @@ bool CWord::CreateOpaqueBox()
                -w, m_ascent + m_descent + h);
 
     m_pOpaqueBox = DNew CPolygon(style, str, 0, 0, 0, 1.0 / 8, 1.0 / 8, 0);
+    m_pOpaqueBox->isOpaqueBox = true;
 
     return(!!m_pOpaqueBox);
 }
