@@ -57,6 +57,8 @@ public:
 
     CPolygon* m_pOpaqueBox;
 
+    bool isOpaqueBox;
+
     int m_ktype, m_kstart, m_kend;
 
     int m_width, m_ascent, m_descent;
