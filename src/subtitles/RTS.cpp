@@ -68,10 +68,11 @@ CMyFont::CMyFont(STSStyle& style)
 
 // CWord
 
-CWord::CWord(STSStyle& style, CStringW str, int ktype, int kstart, int kend)
+CWord::CWord(STSStyle& style, CStringW str, int ktype, int kstart, int kend, double scalex, double scaley)
     : m_style(style), m_str(str)
     , m_width(0), m_ascent(0), m_descent(0)
     , m_ktype(ktype), m_kstart(kstart), m_kend(kend)
+    , m_scalex(scalex), m_scaley(scaley)
     , m_fDrawn(false), m_p(INT_MAX, INT_MAX)
     , m_fLineBreak(false), m_fWhiteSpaceChar(false)
     , m_pOpaqueBox(NULL), isOpaqueBox(false)
@@ -152,6 +153,8 @@ void CWord::Transform(CPoint org)
 {
     double scalex = isOpaqueBox ? 1 : m_style.fontScaleX / 100;
     double scaley = isOpaqueBox ? 1 : m_style.fontScaleY / 100;
+    const double xzoomf = m_scalex * 20000.0;
+    const double yzoomf = m_scaley * 20000.0;
 
     double caz = cos((3.1415 / 180) * m_style.fontAngleZ);
     double saz = sin((3.1415 / 180) * m_style.fontAngleZ);
@@ -183,6 +186,9 @@ void CWord::Transform(CPoint org)
 
         __m128 __xscale = _mm_set_ps1(scalex);
         __m128 __yscale = _mm_set_ps1(scaley);
+        const __m128 __xzoomf = _mm_set_ps1((float)(m_scalex * 20000.0));
+        const __m128 __yzoomf = _mm_set_ps1((float)(m_scaley * 20000.0));
+        const __m128 __1000 = _mm_set_ps1(1000.0f);
 
         __m128 __xsz = _mm_setzero_ps();
         __m128 __ysz = _mm_setzero_ps();
@@ -398,16 +404,16 @@ void CWord::Transform(CPoint org)
             __zz = _mm_set_ps1(-19000);
             __pointz = _mm_max_ps(__pointz, __zz);
 
-            __m128 __20000 = _mm_set_ps1(20000);
-            __zz = _mm_add_ps(__pointz, __20000);
-            __zz = _mm_rcp_ps(__zz);
+            __m128 __tmpzz = _mm_add_ps(__pointz, __xzoomf); // zz + xzoomf
 
-            __pointx = _mm_mul_ps(__pointx, __20000);
-            __pointx = _mm_mul_ps(__pointx, __zz);
+            __xx = _mm_mul_ps(__pointx, __xzoomf);       // xx * xzoomf
+            __pointx = _mm_div_ps(__xx, _mm_max_ps(__tmpzz, __1000)); // x = (xx * xzoomf) / std::max((zz + xzoomf), 1000.0)
 
-            __pointy = _mm_mul_ps(__pointy, __20000);
-            __pointy = _mm_mul_ps(__pointy, __zz);
-            
+            __tmpzz = _mm_add_ps(__pointz, __yzoomf);       // zz + yzoomf
+
+            __yy = _mm_mul_ps(__pointy, __yzoomf);       // yy * yzoomf
+            __pointy = _mm_div_ps(__yy, _mm_max_ps(__tmpzz, __1000)); // y = yy * yzoomf / std::max((zz + yzoomf), 1000.0);
+
             __pointx = _mm_add_ps(__pointx, __xorg);
             __pointy = _mm_add_ps(__pointy, __yorg);
 
@@ -513,10 +519,8 @@ void CWord::Transform(CPoint org)
             else {
                 zz = x * say - z * cay;
             }
-            zz = max(zz, -19000);
-
-            x = (xx * 20000) / (zz + 20000);
-            y = (yy * 20000) / (zz + 20000);
+            x = xx * xzoomf / max(zz + xzoomf, 1000.0);
+            y = yy * yzoomf / max(zz + yzoomf, 1000.0);
 
             mpPathPoints[i].x = (LONG)(x + org.x + 0.5);
             mpPathPoints[i].y = (LONG)(y + org.y + 0.5);
@@ -552,8 +556,8 @@ bool CWord::CreateOpaqueBox()
 
 // CText
 
-CText::CText(STSStyle& style, CStringW str, int ktype, int kstart, int kend)
-    : CWord(style, str, ktype, kstart, kend)
+CText::CText(STSStyle& style, CStringW str, int ktype, int kstart, int kend, double scalex, double scaley)
+    : CWord(style, str, ktype, kstart, kend, scalex, scaley)
 {
     if(m_str == L" ")
     {
@@ -611,7 +615,7 @@ CText::CText(STSStyle& style, CStringW str, int ktype, int kstart, int kend)
 
 CWord* CText::Copy()
 {
-    return(DNew CText(m_style, m_str, m_ktype, m_kstart, m_kend));
+    return(DNew CText(*this));
 }
 
 bool CText::Append(CWord* w)
@@ -672,7 +676,7 @@ bool CText::CreatePath()
 // CPolygon
 
 CPolygon::CPolygon(STSStyle& style, CStringW str, int ktype, int kstart, int kend, double scalex, double scaley, int baseline)
-    : CWord(style, str, ktype, kstart, kend)
+    : CWord(style, str, ktype, kstart, kend, scalex, scaley)
     , m_scalex(scalex), m_scaley(scaley), m_baseline(baseline)
 {
     ParseStr();
@@ -762,6 +766,7 @@ bool CPolygon::ParseStr()
             }
             break;
         case 'l':
+            if (m_pathPointsOrg.GetCount() < 1) break;
             while(GetPOINT(s, p))
             {
                 m_pathTypesOrg.Add(PT_LINETO);
@@ -770,6 +775,7 @@ bool CPolygon::ParseStr()
             break;
         case 'b':
             j = m_pathTypesOrg.GetCount();
+            if (j < 1) break;
             while(GetPOINT(s, p))
             {
                 m_pathTypesOrg.Add(PT_BEZIERTO);
@@ -781,6 +787,7 @@ bool CPolygon::ParseStr()
             m_pathPointsOrg.SetCount(j);
             break;
         case 's':
+            if (m_pathPointsOrg.GetCount() < 1) break;
             j = lastsplinestart = m_pathTypesOrg.GetCount();
             i = 3;
             while(i-- && GetPOINT(s, p))
@@ -797,6 +804,7 @@ bool CPolygon::ParseStr()
             }
             // no break here
         case 'p':
+            if (m_pathPointsOrg.GetCount() < 3) break;
             while(GetPOINT(s, p))
             {
                 m_pathTypesOrg.Add(PT_BSPLINEPATCHTO);
@@ -1841,7 +1849,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
 
         if(i < j)
         {
-            if(CWord* w = DNew CText(style, str.Mid(i, j - i), m_ktype, m_kstart, m_kend))
+            if(CWord* w = DNew CText(style, str.Mid(i, j - i), m_ktype, m_kstart, m_kend, sub->m_scalex, sub->m_scaley))
             {
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
@@ -1850,7 +1858,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
 
         if(c == '\n')
         {
-            if(CWord* w = DNew CText(style, CStringW(), m_ktype, m_kstart, m_kend))
+            if(CWord* w = DNew CText(style, CStringW(), m_ktype, m_kstart, m_kend, sub->m_scalex, sub->m_scaley))
             {
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
@@ -1858,7 +1866,7 @@ void CRenderedTextSubtitle::ParseString(CSubtitle* sub, CStringW str, STSStyle& 
         }
         else if(c == ' ' || c == '\x00A0')
         {
-            if(CWord* w = DNew CText(style, CStringW(c), m_ktype, m_kstart, m_kend))
+            if(CWord* w = DNew CText(style, CStringW(c), m_ktype, m_kstart, m_kend, sub->m_scalex, sub->m_scaley))
             {
                 sub->m_words.AddTail(w);
                 m_kstart = m_kend;
@@ -2226,7 +2234,13 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                                                     | ((int)CalcAnimation((c & 0xff) << 16, style.mod_grad.color[i][j] & 0xff0000, fAnimate)) & 0xff0000)
                                                  : org.mod_grad.color[i][j];
                 }
-
+                if (style.mod_grad.mode[i] == 0)
+                {
+                    for (int j = 0; j < 4; j++)
+                    {
+                        style.mod_grad.alpha[i][j] = style.alpha[i];
+                    }
+                }
                 //if (!fAnimate)
                 style.mod_grad.mode[i] = 1;
 
