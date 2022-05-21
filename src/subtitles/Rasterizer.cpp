@@ -1781,6 +1781,8 @@ CRect Rasterizer::Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int x
     int h = mOverlayHeight;
     int xo = 0, yo = 0;
 
+    int yBeforeClip = y;
+
     // Again, limiting?
     if(x < r.left)
     {
@@ -1841,6 +1843,7 @@ CRect Rasterizer::Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int x
     rnfo.mod_grad.xoffset = xo;
     rnfo.mod_grad.yoffset = yo;
     rnfo.typ = typ;
+    rnfo.mod_grad.clipDiff = clipRect.bottom < yBeforeClip + mOverlayHeight ? yBeforeClip + mOverlayHeight - clipRect.bottom : 0;
 #else
     // The complex "vector clip mask" I think.
     rnfo.am = pAlphaMask + spd.w * y + x;
