@@ -114,6 +114,8 @@ public:
 // for background image
     MOD_PNGIMAGE	b_images[4];
 
+    int clipDiff;
+
     MOD_GRADIENT();
     bool operator == (MOD_GRADIENT& mg);
 
