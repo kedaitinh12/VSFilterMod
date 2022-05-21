@@ -3858,6 +3858,7 @@ DWORD MOD_GRADIENT::getmixcolor(int tx, int ty, int i) // too slow T.T
         // unwarp
         tx += b_images[i].xoffset;
         ty += b_images[i].yoffset;
+        ty += clipDiff;
         while(tx > b_images[i].width - 1) tx -= b_images[i].width;
         while(ty > b_images[i].height - 1) ty -= b_images[i].height;
         while(tx < 0) tx += b_images[i].width;
