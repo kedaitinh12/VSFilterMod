@@ -950,7 +950,7 @@ namespace VapourSynth {
 			if (uintptr_t(src) & 0xf)
 				sse2End = src;
 
-			__m128i lomask = _mm_set1_epi16(0xff00i16);
+			__m128i lomask = _mm_set1_epi16(0xffi16);
 			while (src <= sse2End)
 			{
 				__m128i buf = _mm_load_si128((const __m128i*)src);
