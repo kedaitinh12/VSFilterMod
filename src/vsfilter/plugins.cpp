@@ -1349,9 +1349,9 @@ namespace VapourSynth {
         }
 
         if (filterName == "TextSubMod")
-            d.textsub = new CTextSubVapourSynthFilter { file, charset, fps, &err };
+            d.textsub = new CTextSubVapourSynthFilter { file.get(), charset, fps, &err };
         else
-            d.vobsub = new CVobSubVapourSynthFilter { file, &err };
+            d.vobsub = new CVobSubVapourSynthFilter { file.get(), &err };
         if (err) {
             vsapi->setError(out, (filterName + ": can't open " + _file).c_str());
             vsapi->freeNode(d.node);
@@ -1365,7 +1365,6 @@ namespace VapourSynth {
             d.accurate16bit = false;
 
         vsapi->createFilter(in, out, static_cast<const char *>(userData), vsfilterInit, vsfilterGetFrame, vsfilterFree, fmParallelRequests, 0, ud.release(), core);
-        delete[] file;
     }
 
     //////////////////////////////////////////

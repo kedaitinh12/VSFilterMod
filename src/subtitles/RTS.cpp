@@ -401,7 +401,6 @@ void CWord::Transform(CPoint org)
                 __zz = _mm_mul_ps(__pointz, __cay);
                 __pointz = _mm_sub_ps(__xx, __zz);
             }
-            __pointz = _mm_sub_ps(__xx, __zz);
 
             __m128 __tmpzz = _mm_add_ps(__pointz, __xzoomf); // zz + xzoomf
 
