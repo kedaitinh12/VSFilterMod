@@ -573,7 +573,7 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
             {
                 if(s2[3] < 0xff)
                 {
-                    d2[0] = (((d2[0] - 0x10) * s2[3]) >> 8) + s2[1];
+                    d2[0] = (((d2[0] - RANGE[0][3]) * s2[3]) >> 8) + s2[1];
                 }
             }
         }
@@ -640,7 +640,7 @@ STDMETHODIMP CMemSubPic::AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget)
                     unsigned int ia = (s2[3] + s2[3+src.pitch] + is2[3] + is2[3+src.pitch]) >> 2;
                     if(ia < 0xff)
                     {
-                        *d2 = (((*d2 - 0x80) * ia) >> 8) + ((s2[0] + s2[src.pitch]) >> 1);
+                        *d2 = (((*d2 - RANGE[i+1][3]) * ia) >> 8) + ((s2[0] + s2[src.pitch]) >> 1);
                     }
                 }
             }
