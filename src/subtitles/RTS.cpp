@@ -258,7 +258,7 @@ void CWord::CustomTransform(CPoint org, CString F, int Layer)
 	        // error
 	        CString ErrorText = L"Error: ";
 	        CString LuaErrorText(lua_tostring(L, -1));
-
+            lua_pop(L, 1);
 	        LuaError(ErrorText + LuaErrorText);
         }
         else
@@ -271,6 +271,7 @@ void CWord::CustomTransform(CPoint org, CString F, int Layer)
                 if(LuaIsNumber(L, L"x")) mpPathPoints[i].x = LuaGetFloat(L, L"x");
                 if(LuaIsNumber(L, L"y")) mpPathPoints[i].y = LuaGetFloat(L, L"y");
 	        }
+            lua_pop(L, 1);
         }
     }
 }
@@ -1170,6 +1171,7 @@ void CClipper::ParseLuaTable(STSStyle& style, CPoint & pos, CPoint & org)
                 CString LuaErrorText(lua_tostring(L, -1));
 
                 LuaError(ErrorText + LuaErrorText);
+                lua_pop(L, 1);
             }
             else
             {
@@ -1179,8 +1181,8 @@ void CClipper::ParseLuaTable(STSStyle& style, CPoint & pos, CPoint & org)
                 else
                 {
                     ParseLuaTable(m_style, pos, org);
-                    lua_pop(L, 1);
                 }
+                lua_pop(L, 1);
             }
         }
     }
@@ -2487,7 +2489,7 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                 // error
                 CString ErrorText = L"Error: ";
                 CString LuaErrorText(lua_tostring(L, -1));
-
+                lua_pop(L, 1);
                 LuaError(ErrorText + LuaErrorText);
             }
             else
@@ -2499,8 +2501,8 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                 {
                     sub->m_fAnimated = true;
                     ParseLuaTable(sub, style);
-                    lua_pop(L, 1);
                 }
+                lua_pop(L, 1);
             }
             continue;
         }
@@ -3296,7 +3298,7 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                         // error
                         CString ErrorText = L"Error: ";
                         CString LuaErrorText(lua_tostring(L, -1));
-
+                        lua_pop(L, 1);
                         LuaError(ErrorText + LuaErrorText);
                     }
                     else

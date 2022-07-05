@@ -1416,7 +1416,7 @@ void CMyLua::LoadLuaFile(CString Filename)
             // error
             CString ErrorText = L"Error: ";
             CString LuaErrorText(lua_tostring(L, -1));
-
+            lua_pop(L, 1);
             LuaError(ErrorText + LuaErrorText);
         }
     }
