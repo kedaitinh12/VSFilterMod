@@ -27,9 +27,12 @@
 #include "GFN.h"
 
 #ifdef _VSMOD // path m012. Lua animation
+extern "C"
+{
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
+}
 
 #include <iostream>
 #include <fstream>

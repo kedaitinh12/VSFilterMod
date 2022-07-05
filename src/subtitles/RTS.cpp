@@ -27,9 +27,6 @@
 
 #if defined (_VSMOD) && defined(_LUA)
 // path m012. Lua animation
-#include <lua.h>
-#include <lualib.h>
-#include <lauxlib.h>
 #endif
 
 // WARNING: this isn't very thread safe, use only one RTS a time.

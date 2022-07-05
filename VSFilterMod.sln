@@ -3,17 +3,10 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 16.0.32510.428
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VSFilter", "src\vsfilter\VSFilter.vcxproj", "{F671100C-469F-4723-AAC4-B7FE4F5B8DC4}"
-	ProjectSection(ProjectDependencies) = postProject
-		{DD9D2D92-2241-408A-859E-B85D444B7E3C} = {DD9D2D92-2241-408A-859E-B85D444B7E3C}
-		{FC8080D1-603C-45EC-BCFA-7172E2F3D989} = {FC8080D1-603C-45EC-BCFA-7172E2F3D989}
-	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "subpic", "src\subpic\subpic.vcxproj", "{D514EA4D-EAFB-47A9-A437-A582CA571251}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "subtitles", "src\subtitles\subtitles.vcxproj", "{5E56335F-0FB1-4EEA-B240-D8DC5E0608E4}"
-	ProjectSection(ProjectDependencies) = postProject
-		{1809269E-6E14-47E8-A9D0-147877EBCDBC} = {1809269E-6E14-47E8-A9D0-147877EBCDBC}
-	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dsutil", "src\dsutil\dsutil.vcxproj", "{FC70988B-1AE5-4381-866D-4F405E28AC42}"
 EndProject
@@ -26,11 +19,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zlib", "src\zlib\zlib.vcxproj", "{2FCD4B66-9CF9-4C8F-BC70-37CD20002D49}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libpng", "src\libpng\libpng.vcxproj", "{FC8080D1-603C-45EC-BCFA-7172E2F3D989}"
-	ProjectSection(ProjectDependencies) = postProject
-		{2FCD4B66-9CF9-4C8F-BC70-37CD20002D49} = {2FCD4B66-9CF9-4C8F-BC70-37CD20002D49}
-	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lua51", "src\lua51\lua51.vcxproj", "{1809269E-6E14-47E8-A9D0-147877EBCDBC}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "luajit", "src\luajit\luajit.vcxproj", "{7D8B3C09-A91E-4C14-93AF-059F314C601F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -112,14 +102,14 @@ Global
 		{FC8080D1-603C-45EC-BCFA-7172E2F3D989}.Release (MOD)|Win32.Build.0 = Release|Win32
 		{FC8080D1-603C-45EC-BCFA-7172E2F3D989}.Release (MOD)|x64.ActiveCfg = Release|x64
 		{FC8080D1-603C-45EC-BCFA-7172E2F3D989}.Release (MOD)|x64.Build.0 = Release|x64
-		{1809269E-6E14-47E8-A9D0-147877EBCDBC}.Debug (MOD)|Win32.ActiveCfg = Debug|Win32
-		{1809269E-6E14-47E8-A9D0-147877EBCDBC}.Debug (MOD)|Win32.Build.0 = Debug|Win32
-		{1809269E-6E14-47E8-A9D0-147877EBCDBC}.Debug (MOD)|x64.ActiveCfg = Debug|x64
-		{1809269E-6E14-47E8-A9D0-147877EBCDBC}.Debug (MOD)|x64.Build.0 = Debug|x64
-		{1809269E-6E14-47E8-A9D0-147877EBCDBC}.Release (MOD)|Win32.ActiveCfg = Release|Win32
-		{1809269E-6E14-47E8-A9D0-147877EBCDBC}.Release (MOD)|Win32.Build.0 = Release|Win32
-		{1809269E-6E14-47E8-A9D0-147877EBCDBC}.Release (MOD)|x64.ActiveCfg = Release|x64
-		{1809269E-6E14-47E8-A9D0-147877EBCDBC}.Release (MOD)|x64.Build.0 = Release|x64
+		{7D8B3C09-A91E-4C14-93AF-059F314C601F}.Debug (MOD)|Win32.ActiveCfg = Debug|Win32
+		{7D8B3C09-A91E-4C14-93AF-059F314C601F}.Debug (MOD)|Win32.Build.0 = Debug|Win32
+		{7D8B3C09-A91E-4C14-93AF-059F314C601F}.Debug (MOD)|x64.ActiveCfg = Debug|x64
+		{7D8B3C09-A91E-4C14-93AF-059F314C601F}.Debug (MOD)|x64.Build.0 = Debug|x64
+		{7D8B3C09-A91E-4C14-93AF-059F314C601F}.Release (MOD)|Win32.ActiveCfg = Release|Win32
+		{7D8B3C09-A91E-4C14-93AF-059F314C601F}.Release (MOD)|Win32.Build.0 = Release|Win32
+		{7D8B3C09-A91E-4C14-93AF-059F314C601F}.Release (MOD)|x64.ActiveCfg = Release|x64
+		{7D8B3C09-A91E-4C14-93AF-059F314C601F}.Release (MOD)|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
