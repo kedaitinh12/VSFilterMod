@@ -82,7 +82,7 @@ public:
     COverlayMixer(RasterizerNfo* Info, COverlayGetter* Color);
 
     // Mixer
-    virtual void PixMix(DWORD* dst, DWORD color, BYTE alpha);
+    virtual void PixMix(DWORD* dst, DWORD color, BYTE alpha, MOD_BLEND mod_blendMode);
     virtual DWORD SafeSubstract(DWORD a, DWORD b);
 
     virtual void Draw(bool Body);
@@ -95,7 +95,7 @@ protected:
 public:
     COverlayMixerSSE2(RasterizerNfo* Info, COverlayGetter* Color) : COverlayMixer(Info, Color) {}
 
-    void PixMix(DWORD* dst, DWORD color, BYTE alpha);
+    void PixMix(DWORD* dst, DWORD color, BYTE alpha, MOD_BLEND mod_blendMode);
     DWORD SafeSubstract(DWORD a, DWORD b);
 };
 

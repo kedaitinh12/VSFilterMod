@@ -3,6 +3,83 @@
 #include "OverlayMix.h"
 #include <math.h>
 
+static __forceinline DWORD blendMixColor(DWORD* dst, DWORD* color, MOD_BLEND mod_blendMode) {
+    if (mod_blendMode == BLEND_NORMAL) {
+        return *color;
+    }
+    DWORD c_rb = (*color & 0x00ff00ff);
+    DWORD c_g = (*color & 0x0000ff00);
+    DWORD d_rb = (*dst & 0x00ff00ff);
+    DWORD d_g = (*dst & 0x0000ff00);
+    DWORD blend_rb, blend_g;
+    if (mod_blendMode == BLEND_OVERLAY) {
+        DWORD tmp_r, tmp_g, tmp_b;
+        if (((d_rb >> 16) & 0x000000ff) < 0x80) {
+            tmp_r = 2 * div_255_fast(((c_rb >> 16) & 0x000000ff) * ((d_rb >> 16) & 0x000000ff));
+        }
+        else {
+            tmp_r = 0xff - 2 * div_255_fast((0x000000ff - ((c_rb >> 16) & 0x000000ff)) * (0x000000ff - ((d_rb >> 16) & 0x000000ff)));
+        }
+        if ((d_g >> 8) < 0x80) {
+            tmp_g = 2 * div_255_fast((c_g >> 8) * (d_g >> 8));
+        }
+        else {
+            tmp_g = 0xff - 2 * div_255_fast((0x000000ff - (c_g >> 8)) * (0x000000ff - (d_g >> 8)));
+        }
+        if ((d_rb & 0x000000ff) < 0x80) {
+            tmp_b = 2 * div_255_fast((c_rb & 0x000000ff) * (d_rb & 0x000000ff));
+        }
+        else {
+            tmp_b = 0xff - 2 * div_255_fast((0x000000ff - (c_rb & 0x000000ff)) * (0x000000ff - (d_rb & 0x000000ff)));
+        }
+        blend_rb = tmp_r << 16 | tmp_b;
+        blend_g = tmp_g << 8;
+    }
+    else if (mod_blendMode == BLEND_ADD) {
+        DWORD tmp_r = (c_rb & 0x00ff0000) + (d_rb & 0x00ff0000);
+        DWORD tmp_g = c_g + d_g;
+        DWORD tmp_b = (c_rb & 0x000000ff) + (d_rb & 0x000000ff);
+        tmp_r = tmp_r <= 0x00ff0000 ? tmp_r : 0x00ff0000;
+        tmp_g = tmp_g <= 0x0000ff00 ? tmp_g : 0x0000ff00;
+        tmp_b = tmp_b <= 0x000000ff ? tmp_b : 0x000000ff;
+        blend_rb = tmp_r | tmp_b;
+        blend_g = tmp_g;
+    }
+    else if (mod_blendMode == BLEND_SUBSTRACT) {
+        DWORD tmp_r = (c_rb & 0x00ff0000) > (d_rb & 0x00ff0000) ? (c_rb & 0x00ff0000) - (d_rb & 0x00ff0000) : 0;
+        DWORD tmp_g = c_g > d_g ? c_g - d_g : 0;
+        DWORD tmp_b = (c_rb & 0x000000ff) > (d_rb & 0x000000ff) ? (c_rb & 0x000000ff) - (d_rb & 0x000000ff) : 0;
+        blend_rb = tmp_r | tmp_b;
+        blend_g = tmp_g;
+    }
+    else if (mod_blendMode == BLEND_MULTIPLY) {
+        DWORD tmp_r = div_255_fast(((c_rb >> 16) & 0x000000ff) * ((d_rb >> 16) & 0x000000ff));
+        DWORD tmp_g = div_255_fast((c_g >> 8) * (d_g >> 8));
+        DWORD tmp_b = div_255_fast((c_rb & 0x000000ff) * (d_rb & 0x000000ff));
+        blend_rb = tmp_r << 16 | tmp_b;
+        blend_g = tmp_g << 8;
+    }
+    else if (mod_blendMode == BLEND_SCREEN) {
+        DWORD tmp_r = 0xff - div_255_fast((0x000000ff - ((c_rb >> 16) & 0x000000ff)) * (0x000000ff - ((d_rb >> 16) & 0x000000ff)));
+        DWORD tmp_g = 0xff - div_255_fast((0x000000ff - (c_g >> 8)) * (0x000000ff - (d_g >> 8)));
+        DWORD tmp_b = 0xff - div_255_fast((0x000000ff - (c_rb & 0x000000ff)) * (0x000000ff - (d_rb & 0x000000ff)));
+        blend_rb = tmp_r << 16 | tmp_b;
+        blend_g = tmp_g << 8;
+    }
+    else if (mod_blendMode == BLEND_DIFFERENCE) {
+        DWORD tmp_r = (c_rb & 0x00ff0000) > (d_rb & 0x00ff0000) ? (c_rb & 0x00ff0000) - (d_rb & 0x00ff0000) : (d_rb & 0x00ff0000) - (c_rb & 0x00ff0000);
+        DWORD tmp_g = c_g > d_g ? c_g - d_g : d_g - c_g;
+        DWORD tmp_b = (c_rb & 0x000000ff) > (d_rb & 0x000000ff) ? (c_rb & 0x000000ff) - (d_rb & 0x000000ff) : (d_rb & 0x000000ff) - (c_rb & 0x000000ff);
+        blend_rb = tmp_r | tmp_b;
+        blend_g = tmp_g;
+    }
+    else {
+        blend_rb = c_rb;
+        blend_g = c_g;
+    }
+    return blend_rb | blend_g;
+}
+
 // COverlayMixer class
 COverlayMixer::COverlayMixer(RasterizerNfo* Info, COverlayGetter* Color)
 {
@@ -10,11 +87,13 @@ COverlayMixer::COverlayMixer(RasterizerNfo* Info, COverlayGetter* Color)
     this->Color = Color;
 }
 
-void COverlayMixer::PixMix(DWORD* dst, DWORD color, BYTE alpha)
+void COverlayMixer::PixMix(DWORD* dst, DWORD color, BYTE alpha, MOD_BLEND mod_blendMode = BLEND_NORMAL)
 {
     DWORD a = ((alpha * (color >> 24)) >> 6) & 0xff;
     DWORD ia = 256 - a;
     a += 1;
+
+    DWORD blendColor = blendMixColor(dst, &color, mod_blendMode);
 
     *dst = ((((*dst & 0x00ff00ff) * ia + (color & 0x00ff00ff) * a) & 0xff00ff00) >> 8)
         | ((((*dst & 0x0000ff00) * ia + (color & 0x0000ff00) * a) & 0x00ff0000) >> 8)
@@ -50,9 +129,9 @@ void COverlayMixer::Draw(bool Body)
         while (h--)
         {
             for (int wt = 0; wt < gran; ++wt)
-                PixMix(&dst[wt], Color->getcolor1(wt, h), s[wt * 2]);
+                PixMix(&dst[wt], Color->getcolor1(wt, h), s[wt * 2], Info->mod_blendMode);
             for (int wt = gran; wt < Info->w; ++wt)
-                PixMix(&dst[wt], Color->getcolor2(wt, h), s[wt * 2]);
+                PixMix(&dst[wt], Color->getcolor2(wt, h), s[wt * 2], Info->mod_blendMode);
 
             s += 2 * Info->overlayp;
             dst = (DWORD*)((char*)dst + Info->pitch);
@@ -64,9 +143,9 @@ void COverlayMixer::Draw(bool Body)
         while (h--)
         {
             for (int wt = 0; wt < gran; ++wt)
-                PixMix(&dst[wt], Color->getcolor1(wt, h), SafeSubstract(s[wt * 2 + 1], s[wt * 2]));
+                PixMix(&dst[wt], Color->getcolor1(wt, h), SafeSubstract(s[wt * 2 + 1], s[wt * 2]), Info->mod_blendMode);
             for (int wt = gran; wt < Info->w; ++wt)
-                PixMix(&dst[wt], Color->getcolor2(wt, h), SafeSubstract(s[wt * 2 + 1], s[wt * 2]));
+                PixMix(&dst[wt], Color->getcolor2(wt, h), SafeSubstract(s[wt * 2 + 1], s[wt * 2]), Info->mod_blendMode);
 
             s += 2 * Info->overlayp;
             dst = (DWORD*)((char*)dst + Info->pitch);
@@ -74,15 +153,17 @@ void COverlayMixer::Draw(bool Body)
     }
 }
 
-void COverlayMixerSSE2::PixMix(DWORD* dst, DWORD color, BYTE alpha)
+void COverlayMixerSSE2::PixMix(DWORD* dst, DWORD color, BYTE alpha, MOD_BLEND mod_blendMode = BLEND_NORMAL)
 {
     BYTE palpha = ((alpha * (color >> 24)) >> 6) & 0xff;
     color &= 0xffffff;
 
+    DWORD blendColor = blendMixColor(dst, &color, mod_blendMode); // TODO: use sse2
+
     __m128i zero = _mm_setzero_si128();
     __m128i a = _mm_set1_epi32(((palpha + 1) << 16) | (0x100 - palpha));
     __m128i d = _mm_unpacklo_epi8(_mm_cvtsi32_si128(*dst), zero);
-    __m128i s = _mm_unpacklo_epi8(_mm_cvtsi32_si128(color), zero);
+    __m128i s = _mm_unpacklo_epi8(_mm_cvtsi32_si128(blendColor), zero);
     __m128i r = _mm_unpacklo_epi16(d, s);
 
     r = _mm_madd_epi16(r, a);
@@ -116,9 +197,9 @@ template<class T> void COverlayAlphaMixer<T>::Draw(bool Body)
         while (h--)
         {
             for (int wt = 0; wt < gran; ++wt)
-                PixMix(&dst[wt], Color->getcolor1(wt, h), s[wt * 2] * Alpha->getcolor1(wt, h) >> 6);
+                PixMix(&dst[wt], Color->getcolor1(wt, h), s[wt * 2] * Alpha->getcolor1(wt, h) >> 6, Info->mod_blendMode);
             for (int wt = gran; wt < Info->w; ++wt)
-                PixMix(&dst[wt], Color->getcolor2(wt, h), s[wt * 2] * Alpha->getcolor2(wt, h) >> 6);
+                PixMix(&dst[wt], Color->getcolor2(wt, h), s[wt * 2] * Alpha->getcolor2(wt, h) >> 6, Info->mod_blendMode);
 
             s += 2 * Info->overlayp;
             dst = (DWORD*)((char*)dst + Info->pitch);
@@ -129,9 +210,9 @@ template<class T> void COverlayAlphaMixer<T>::Draw(bool Body)
         while (h--)
         {
             for (int wt = 0; wt < gran; ++wt)
-                PixMix(&dst[wt], Color->getcolor1(wt, h), SafeSubstract(s[wt * 2 + 1], s[wt * 2]) * Alpha->getcolor1(wt, h) >> 6);
+                PixMix(&dst[wt], Color->getcolor1(wt, h), SafeSubstract(s[wt * 2 + 1], s[wt * 2]) * Alpha->getcolor1(wt, h) >> 6, Info->mod_blendMode);
             for (int wt = gran; wt < Info->w; ++wt)
-                PixMix(&dst[wt], Color->getcolor2(wt, h), SafeSubstract(s[wt * 2 + 1], s[wt * 2]) * Alpha->getcolor2(wt, h) >> 6);
+                PixMix(&dst[wt], Color->getcolor2(wt, h), SafeSubstract(s[wt * 2 + 1], s[wt * 2]) * Alpha->getcolor2(wt, h) >> 6, Info->mod_blendMode);
 
             s += 2 * Info->overlayp;
             dst = (DWORD*)((char*)dst + Info->pitch);
@@ -222,9 +303,9 @@ template<class T> int lua_RendererMix(lua_State* L)
         if (Mix->Alpha) A = (A * Mix->Alpha->getcolor1(x, y)) >> 6;
 
         if (Mix->m_body)
-            Mix->PixMix(&dst[x], color, A);
+            Mix->PixMix(&dst[x], color, A, Mix->Info->mod_blendMode);
         else
-            Mix->PixMix(&dst[x], color, A);
+            Mix->PixMix(&dst[x], color, A, Mix->Info->mod_blendMode);
     }
     return 0;
 }
