@@ -3581,6 +3581,7 @@ void STSStyle::SetDefault()
     LuaAfterTransformHandler = L"";
     LuaCustomTransformHandler = L"";
     LuaClipStyleHandler = L"";
+    LuaRendererHandler = L"";
 #endif
 #endif
 }
@@ -3633,6 +3634,7 @@ bool STSStyle::operator == (STSStyle& s)
            && LuaBeforeTransformHandler == s.LuaBeforeTransformHandler
            && LuaCustomTransformHandler == s.LuaCustomTransformHandler
            && LuaClipStyleHandler == s.LuaClipStyleHandler
+           && LuaRendererHandler == s.LuaRendererHandler
 #endif
 #endif
            && IsFontStyleEqual(s));
@@ -3707,6 +3709,7 @@ void STSStyle::mod_CopyStyleFrom(STSStyle& s)
     LuaAfterTransformHandler = s.LuaAfterTransformHandler;
     LuaCustomTransformHandler = s.LuaCustomTransformHandler;
     LuaClipStyleHandler = s.LuaClipStyleHandler;
+    LuaRendererHandler = s.LuaRendererHandler;
 #endif
     // font
     charSet = s.charSet;

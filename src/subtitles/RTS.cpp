@@ -119,6 +119,9 @@ void CWord::Paint(CPoint p, CPoint org, int Layer)
 void CWord::Paint(CPoint p, CPoint org)
 #endif
 {
+#if defined (_VSMOD) && defined(_LUA)
+    m_layer = Layer;
+#endif
     if(!m_str) return;
 
     if(!m_fDrawn)
@@ -828,6 +831,8 @@ CWord* CPolygon::Copy()
     T->L = L;
     T->LuaLog = LuaLog;
     T->m_entry = m_entry;
+    T->m_layer = m_layer;
+    T->LuaRendererHandler = LuaRendererHandler;
 #endif
     return T;
 }
@@ -2390,7 +2395,6 @@ void CRenderedTextSubtitle::ParseLuaTable(CSubtitle* sub, STSStyle& style)
     }
 
     // Custom modify points before transform
-    style.LuaBeforeTransformHandler = CheckLuaHandler(L"beforetransform");
     {
         CString LuaBeforeTransformHandler = CheckLuaHandler(L"beforetransform");
         CString LuaAfterTransformHandler = CheckLuaHandler(L"aftertransform");

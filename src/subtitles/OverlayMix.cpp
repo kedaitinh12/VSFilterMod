@@ -174,13 +174,13 @@ template<class T> int lua_RendererGet(lua_State* L)
     if (!lua_isnumber(L, 3)) return lua_Error(L, "Argument #3 is invalid (need number 'y')");
 
     COverlayLuaMixer<T>* Mix = (COverlayLuaMixer<T> *)l_CheckMix(L);
-    int x = lua_tonumber(L, 2);
-    int y = lua_tonumber(L, 3);
+    int x = lua_tointeger(L, 2);
+    int y = lua_tointeger(L, 3);
 
     int Alpha = 0;
     int Color = 0xff000000;
-    if (((x < Mix->Info->w) || (x >= 0)) &&
-        ((y < Mix->Info->h) || (y >= 0)))
+    if (((x < Mix->Info->w) && (x >= 0)) &&
+        ((y < Mix->Info->h) && (y >= 0)))
     {
         Alpha = Mix->Info->s[x * 2 + 2 * Mix->Info->overlayp * (Mix->Info->h - y - 1)];
         Color = *(DWORD*)((char*)&Mix->Info->dst[0] + Mix->Info->pitch * (Mix->Info->h - y - 1));
@@ -212,8 +212,8 @@ template<class T> int lua_RendererMix(lua_State* L)
 
     color |= (alpha << 24);
 
-    if (((x < Mix->Info->w) || (x >= 0)) &&
-        ((y < Mix->Info->h) || (y >= 0)))
+    if (((x < Mix->Info->w) && (x >= 0)) &&
+        ((y < Mix->Info->h) && (y >= 0)))
     {
         DWORD* dst = (DWORD*)((char*)&Mix->Info->dst[0] + Mix->Info->pitch * (Mix->Info->h - y - 1));
         byte* src = &Mix->Info->s[2 * Mix->Info->overlayp * (Mix->Info->h - y - 1)];
@@ -255,8 +255,10 @@ template<class T> void COverlayLuaMixer<T>::Draw(bool Body)
         LuaAddIntegerField(L, "gran", (Info->sw[1] == 0xffffffff) ? Info->w : min(Info->sw[3] + 1 - Info->xo, Info->w));
 
         // Colors
-        LuaAddIntegerField(L, "c1", Info->sw[0]);
-        LuaAddIntegerField(L, "c2", Info->sw[2]);
+        LuaAddIntegerField(L, "c1", Info->sw[0] & 0xffffff);
+        LuaAddIntegerField(L, "c2", Info->sw[2] & 0xffffff);
+        LuaAddIntegerField(L, "a1", (Info->sw[0] >> 24) & 0xff);
+        LuaAddIntegerField(L, "a2", (Info->sw[2] >> 24) & 0xff);
 
         // Saved user data
         {

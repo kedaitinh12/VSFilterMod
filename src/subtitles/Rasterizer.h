@@ -137,6 +137,7 @@ private:
 public:
 #if defined (_VSMOD) && defined(_LUA)
     int     m_entry; // id
+    int     m_layer;
     CString LuaRendererHandler;
 #endif
 
