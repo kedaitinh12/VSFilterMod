@@ -60,6 +60,7 @@ void COverlayMixer::Draw(bool Body)
     }
     else
     {
+        s = Info->src;
         while (h--)
         {
             for (int wt = 0; wt < gran; ++wt)

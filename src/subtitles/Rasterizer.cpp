@@ -1110,7 +1110,7 @@ CRect Rasterizer::Draw(SubPicDesc& spd, CRect& clipRect, byte* pAlphaMask, int x
 #ifdef _VSMOD // patch m004. gradient colors
     }
     else
-        Color = new COverlayGradient(mod_grad);
+        Color = new COverlayGradient(rnfo.mod_grad, typ);
 #endif
 
 #if defined (_VSMOD) && defined(_LUA)

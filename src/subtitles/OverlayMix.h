@@ -31,11 +31,12 @@ class COverlayGradient : public COverlayGetter
 {
 private:
     MOD_GRADIENT mod_grad;
+    int type;
 
 public:
-    COverlayGradient(MOD_GRADIENT m) { mod_grad = m; }
+    COverlayGradient(MOD_GRADIENT m, int typ) { mod_grad = m; type = typ; }
 
-    DWORD getcolor1(int x, int y) { return mod_grad.getmixcolor(x, y, 0); }
+    DWORD getcolor1(int x, int y) { return mod_grad.getmixcolor(x, y, type); }
     DWORD getcolor2(int x, int y) { return mod_grad.getmixcolor(x, y, 1); }
 };
 
