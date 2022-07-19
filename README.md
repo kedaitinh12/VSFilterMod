@@ -2,6 +2,8 @@ A modification of VSFilterMod by Vmoe Fansub
 
 New override tags: [wiki page](https://github.com/computerfan/VSFilterMod/wiki)
 
+Important note: **DO NOT use mod tags in a softsub (ASS file) distribution**, because most players just ignore them, and they may not efficient enough for real-time rendering.
+
 Base branches:
 * Masaiki/VSFilterMod: r5.2.7
 * sorayuki/VSFilterMod: r5.2.6
