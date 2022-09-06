@@ -3723,6 +3723,8 @@ bool CRenderedTextSubtitle::ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& 
                 else if (p == L"mult") mode = BLEND_MULTIPLY;
                 else if (p == L"scr") mode = BLEND_SCREEN;
                 else if (p == L"diff") mode = BLEND_DIFFERENCE;
+                else if (p == L"rsub") mode = BLEND_SUBSTRACT_REVERSE;
+                else if (p == L"isub") mode = BLEND_SUBSTRACT_INVERSE;
             }
             else {
                 mode = (MOD_BLEND)wcstol(p, NULL, 10);

@@ -46,9 +46,9 @@ static __forceinline DWORD blendMixColor(DWORD* dst, DWORD* color, MOD_BLEND mod
         blend_g = tmp_g;
     }
     else if (mod_blendMode == BLEND_SUBSTRACT) {
-        DWORD tmp_r = (c_rb & 0x00ff0000) > (d_rb & 0x00ff0000) ? (c_rb & 0x00ff0000) - (d_rb & 0x00ff0000) : 0;
-        DWORD tmp_g = c_g > d_g ? c_g - d_g : 0;
-        DWORD tmp_b = (c_rb & 0x000000ff) > (d_rb & 0x000000ff) ? (c_rb & 0x000000ff) - (d_rb & 0x000000ff) : 0;
+        DWORD tmp_r = (d_rb & 0x00ff0000) > (c_rb & 0x00ff0000) ? (d_rb & 0x00ff0000) - (c_rb & 0x00ff0000) : 0;
+        DWORD tmp_g = d_g > c_g ? d_g - c_g : 0;
+        DWORD tmp_b = (d_rb & 0x000000ff) > (c_rb & 0x000000ff) ? (d_rb & 0x000000ff) - (c_rb & 0x000000ff) : 0;
         blend_rb = tmp_r | tmp_b;
         blend_g = tmp_g;
     }
@@ -70,6 +70,22 @@ static __forceinline DWORD blendMixColor(DWORD* dst, DWORD* color, MOD_BLEND mod
         DWORD tmp_r = (c_rb & 0x00ff0000) > (d_rb & 0x00ff0000) ? (c_rb & 0x00ff0000) - (d_rb & 0x00ff0000) : (d_rb & 0x00ff0000) - (c_rb & 0x00ff0000);
         DWORD tmp_g = c_g > d_g ? c_g - d_g : d_g - c_g;
         DWORD tmp_b = (c_rb & 0x000000ff) > (d_rb & 0x000000ff) ? (c_rb & 0x000000ff) - (d_rb & 0x000000ff) : (d_rb & 0x000000ff) - (c_rb & 0x000000ff);
+        blend_rb = tmp_r | tmp_b;
+        blend_g = tmp_g;
+    }
+    else if (mod_blendMode == BLEND_SUBSTRACT_REVERSE) {
+        DWORD tmp_r = (c_rb & 0x00ff0000) > (d_rb & 0x00ff0000) ? (c_rb & 0x00ff0000) - (d_rb & 0x00ff0000) : 0;
+        DWORD tmp_g = c_g > d_g ? c_g - d_g : 0;
+        DWORD tmp_b = (c_rb & 0x000000ff) > (d_rb & 0x000000ff) ? (c_rb & 0x000000ff) - (d_rb & 0x000000ff) : 0;
+        blend_rb = tmp_r | tmp_b;
+        blend_g = tmp_g;
+    }
+    else if (mod_blendMode == BLEND_SUBSTRACT_INVERSE) {
+        d_rb = 0x00ff00ff - d_rb;
+        d_g = 0x0000ff00 - d_g;
+        DWORD tmp_r = (c_rb & 0x00ff0000) > (d_rb & 0x00ff0000) ? (c_rb & 0x00ff0000) - (d_rb & 0x00ff0000) : 0;
+        DWORD tmp_g = c_g > d_g ? c_g - d_g : 0;
+        DWORD tmp_b = (c_rb & 0x000000ff) > (d_rb & 0x000000ff) ? (c_rb & 0x000000ff) - (d_rb & 0x000000ff) : 0;
         blend_rb = tmp_r | tmp_b;
         blend_g = tmp_g;
     }
