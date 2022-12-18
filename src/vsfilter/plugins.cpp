@@ -554,6 +554,7 @@ extern "C" __declspec(dllexport) void __cdecl VirtualdubFilterModuleDeinit(VDXFi
 // Avisynth interface
 //
 
+/*
 namespace AviSynth1
 {
 #include <avisynth\avisynth1.h>
@@ -680,12 +681,265 @@ extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit(IScrip
     return(NULL);
 }
 }
+*/
 
-namespace AviSynth25
+#include <emmintrin.h>
+
+namespace AviSynthPlus
 {
-#include <avisynth\avisynth25.h>
+#include <avisynth/avisynth.h>
 
 static bool s_fSwapUV = false;
+
+class AVSFFrameBuf
+{
+protected:
+    AVSFFrameBuf()
+        : subpic{}
+        , subpic2{}
+    {
+    }
+
+public:
+    virtual ~AVSFFrameBuf() {}
+    virtual void WriteTo(PVideoFrame& frame) = 0;
+    SubPicDesc subpic;
+    SubPicDesc subpic2;
+
+private:
+    AVSFFrameBuf(const AVSFFrameBuf*) = delete;
+    AVSFFrameBuf* operator = (const AVSFFrameBuf*) = delete;
+};
+
+template<int BITDEPTH>
+class AVSFYUVBuf : public AVSFFrameBuf
+{
+    uint8_t* Buffer;
+
+    uint8_t* BufDatas[3];
+    uint8_t* BufDatas2[3];
+    int BufStrides[3];
+
+    template<int BC>
+    static inline void SplitBits(int sampleCount, const uint16_t* src, uint8_t* dst1, uint8_t* dst2)
+    {
+        auto srcEnd = src + sampleCount;
+        auto sse2End = src + sampleCount - 8;
+        if (uintptr_t(src) & 0xf)
+            sse2End = src;
+
+        __m128i lomask = _mm_set1_epi16(0xffi16);
+        while (src <= sse2End)
+        {
+            __m128i buf = _mm_load_si128((const __m128i*)src);
+            __m128i hi, lo;
+
+            if (BC == 16)
+            {
+                hi = _mm_srli_epi16(buf, 8);
+                hi = _mm_packus_epi16(hi, hi);
+                lo = _mm_and_si128(buf, lomask);
+                lo = _mm_packus_epi16(lo, lo);
+            }
+            else if (BC == 10)
+            {
+                hi = _mm_srli_epi16(buf, 2);
+                hi = _mm_packus_epi16(hi, hi);
+                lo = _mm_slli_epi16(buf, 6);
+                lo = _mm_and_si128(lo, lomask);
+                lo = _mm_packus_epi16(lo, lo);
+            }
+            _mm_storel_epi64((__m128i*)dst1, hi);
+            _mm_storel_epi64((__m128i*)dst2, lo);
+            dst1 += 8;
+            dst2 += 8;
+            src += 8;
+        }
+
+        while (src < srcEnd)
+        {
+            if (BITDEPTH == 10)
+            {
+                *dst1 = ((*src) >> 2) & 0xff;
+                *dst2 = ((*src) << 6) & 0xff;
+            }
+            else if (BITDEPTH == 16)
+            {
+                *dst1 = ((*src) >> 8) & 0xff;
+                *dst2 = (*src) & 0xff;
+            }
+
+            dst1 += 1;
+            dst2 += 1;
+            src += 1;
+        }
+    }
+
+    template<int BC>
+    static inline void MergeBits(int sampleCount, uint16_t* dst, const uint8_t* src1, const uint8_t* src2)
+    {
+        auto srcEnd = dst + sampleCount;
+        auto sse2End = dst + sampleCount - 8;
+        if (uintptr_t(dst) & 0xf)
+            sse2End = dst;
+
+        while (dst < sse2End)
+        {
+            __m128i hbuf = _mm_loadl_epi64((const __m128i*) src1);
+            __m128i lbuf = _mm_loadl_epi64((const __m128i*) src2);
+            hbuf = _mm_unpacklo_epi8(hbuf, _mm_setzero_si128());
+            hbuf = _mm_slli_epi16(hbuf, 8);
+            lbuf = _mm_unpacklo_epi8(lbuf, _mm_setzero_si128());
+            hbuf = _mm_adds_epi16(hbuf, lbuf);
+            if (BC == 10)
+                hbuf = _mm_srli_epi16(hbuf, 6);
+
+            _mm_store_si128((__m128i*)dst, hbuf);
+            src1 += 8;
+            src2 += 8;
+            dst += 8;
+        }
+
+        while (dst < srcEnd)
+        {
+            *dst = (*src1 << 8) | *src2;
+            if (BC == 10)
+                *dst >>= 6;
+            src1 += 1;
+            src2 += 1;
+            dst += 1;
+        }
+    }
+
+public:
+    ~AVSFYUVBuf()
+    {
+        if (Buffer)
+            free(Buffer);
+    }
+
+    AVSFYUVBuf(PVideoFrame& frame, const VideoInfo& vi)
+    {
+        int totalSize = 0;
+        const int planes[3] = { PLANAR_Y, PLANAR_U, PLANAR_V };
+
+        const int heightY = frame->GetHeight(planes[0]);
+        const int heightUV = frame->GetHeight(planes[1]);
+
+        for (int i = 0; i < 3; ++i)
+        {
+            BufStrides[i] = frame->GetPitch(planes[i]);
+            totalSize += BufStrides[i] * frame->GetHeight(planes[i]);
+        }
+        Buffer = (uint8_t*)malloc(totalSize);
+
+        if (BITDEPTH <= 8)
+        {
+            BufDatas[0] = Buffer;
+            BufDatas[1] = BufDatas[0] + BufStrides[0] * heightY;
+            BufDatas[2] = BufDatas[1] + BufStrides[1] * heightUV;
+
+            for (int i = 0; i < 3; ++i)
+            {
+                const uint8_t* p = frame->GetReadPtr(planes[i]);
+                memcpy(BufDatas[i], p, frame->GetPitch(planes[i]) * frame->GetHeight(planes[i]));
+            }
+        }
+        else
+        {
+            for (int i = 0; i < 3; ++i)
+                BufStrides[i] /= 2;
+
+            BufDatas[0] = Buffer;
+            BufDatas[1] = BufDatas[0] + BufStrides[0] * heightY;
+            BufDatas[2] = BufDatas[1] + BufStrides[1] * heightUV;
+            BufDatas2[0] = BufDatas[2] + BufStrides[2] * heightUV;
+            BufDatas2[1] = BufDatas2[0] + BufStrides[0] * vi.height;
+            BufDatas2[2] = BufDatas2[1] + BufStrides[1] * heightUV;
+
+            for (int i = 0; i < 3; ++i)
+            {
+                const uint8_t* p = frame->GetReadPtr(planes[i]);
+                int srcStride = frame->GetPitch(planes[i]);
+
+                int wEnd = frame->GetRowSize(planes[i]) / 2;
+                int hEnd = frame->GetHeight(planes[i]);
+                uint8_t* pDst = BufDatas[i];
+                uint8_t* pDst2 = BufDatas2[i];
+
+                for (int h = 0; h < hEnd; ++h)
+                {
+                    const uint16_t* pSample = reinterpret_cast<const uint16_t*>(p + h * srcStride);
+                    uint8_t* pDstSample = BufDatas[i] + h * BufStrides[i];
+                    uint8_t* pDstSample2 = BufDatas2[i] + h * BufStrides[i];
+                    SplitBits<BITDEPTH>(wEnd, pSample, pDstSample, pDstSample2);
+                }
+            }
+        }
+
+        subpic.w = vi.width;
+        subpic.h = vi.height;
+        subpic.pitch = BufStrides[0];
+        subpic.pitchUV = BufStrides[1];
+        subpic.bits = BufDatas[0];
+        subpic.bitsU = BufDatas[1];
+        subpic.bitsV = BufDatas[2];
+        subpic.bpp = 8;
+
+        if (BITDEPTH <= 8)
+            subpic.type = vi.pixel_type == VideoInfo::CS_YV12 ? (s_fSwapUV ? MSP_IYUV : MSP_YV12) :
+            vi.pixel_type == VideoInfo::CS_IYUV ? (s_fSwapUV ? MSP_YV12 : MSP_IYUV) :
+            -1;
+        else
+            subpic.type = subpic2.type = s_fSwapUV ? MSP_IYUV : MSP_YV12;
+    }
+
+    void WriteTo(PVideoFrame& frame) override
+    {
+        const int planes[3] = { PLANAR_Y, PLANAR_U, PLANAR_V };
+
+        if (BITDEPTH <= 8)
+        {
+            for (int i = 0; i < 3; ++i)
+            {
+                int dstStride = frame->GetPitch(planes[i]);
+                uint8_t* pDst = frame->GetWritePtr(planes[i]);
+                int srcStride = BufStrides[i];
+                const uint8_t* pSrc = BufDatas[i];
+                int wEnd = frame->GetRowSize(planes[i]);
+                int hEnd = frame->GetHeight(planes[i]);
+                for (int h = 0; h < hEnd; ++h)
+                {
+                    uint8_t* pDstRow = pDst + h * dstStride;
+                    const uint8_t* pSrcRow = pSrc + h * srcStride;
+                    memcpy(pDstRow, pSrcRow, wEnd);
+                }
+            }
+        }
+        else
+        {
+            for (int i = 0; i < 3; ++i)
+            {
+                int dstStride = frame->GetPitch(planes[i]);
+                uint8_t* pDst = frame->GetWritePtr(planes[i]);
+                int srcStride = BufStrides[i];
+                const uint8_t* pSrc = BufDatas[i];
+                const uint8_t* pSrc2 = BufDatas2[i];
+                int wEnd = frame->GetRowSize(planes[i]) / 2;
+                int hEnd = frame->GetHeight(planes[i]);
+                for (int h = 0; h < hEnd; ++h)
+                {
+                    uint16_t* pDstSample = reinterpret_cast<uint16_t*>(pDst + h * dstStride);
+                    const uint8_t* pSrcSample = pSrc + h * srcStride;
+                    const uint8_t* pSrcSample2 = pSrc2 + h * srcStride;
+
+                    MergeBits<BITDEPTH>(wEnd, pDstSample, pSrcSample, pSrcSample2);
+                }
+            }
+        }
+    }
+};
+
 
 class CAvisynthFilter : public GenericVideoFilter, virtual public CFilter
 {
@@ -700,33 +954,59 @@ public:
 
         env->MakeWritable(&frame);
 
-        SubPicDesc dst;
-        dst.w = vi.width;
-        dst.h = vi.height;
-        dst.pitch = frame->GetPitch();
-        dst.pitchUV = frame->GetPitch(PLANAR_U);
-        dst.bits = (void**)frame->GetWritePtr();
-        dst.bitsU = frame->GetWritePtr(PLANAR_U);
-        dst.bitsV = frame->GetWritePtr(PLANAR_V);
-        dst.bpp = dst.pitch / dst.w * 8; //vi.BitsPerPixel();
-        dst.type =
-            vi.IsRGB32() ? (env->GetVar("RGBA").AsBool() ? MSP_RGBA : MSP_RGB32)  :
+        if (vi.IsRGB() || vi.IsYUY2())
+        {
+            SubPicDesc dst;
+            dst.w = vi.width;
+            dst.h = vi.height;
+            dst.pitch = frame->GetPitch();
+            dst.bits = (void**)frame->GetWritePtr();
+            dst.bpp = vi.BitsPerPixel();
+            dst.type =
+                vi.IsRGB32() ? (env->GetVar("RGBA").AsBool() ? MSP_RGBA : MSP_RGB32) :
                 vi.IsRGB24() ? MSP_RGB24 :
                 vi.IsYUY2() ? MSP_YUY2 :
-        /*vi.IsYV12()*/ vi.pixel_type == VideoInfo::CS_YV12 ? (s_fSwapUV ? MSP_IYUV : MSP_YV12) :
-        /*vi.IsIYUV()*/ vi.pixel_type == VideoInfo::CS_IYUV ? (s_fSwapUV ? MSP_YV12 : MSP_IYUV) :
                 -1;
 
-        float fps = m_fps > 0 ? m_fps : (float)vi.fps_numerator / vi.fps_denominator;
+            float fps = m_fps > 0 ? m_fps : (float)vi.fps_numerator / vi.fps_denominator;
 
-        REFERENCE_TIME timestamp;
+            REFERENCE_TIME timestamp;
 
-        if(!vfr)
-            timestamp = (REFERENCE_TIME)(10000000i64 * n / fps);
+            if (!vfr)
+                timestamp = (REFERENCE_TIME)(10000000i64 * n / fps);
+            else
+                timestamp = (REFERENCE_TIME)(10000000 * vfr->TimeStampFromFrameNumber(n));
+
+            Render(dst, timestamp, fps);
+        }
         else
-            timestamp = (REFERENCE_TIME)(10000000 * vfr->TimeStampFromFrameNumber(n));
+        {
+            AVSFFrameBuf* frameBuf = nullptr;
 
-        Render(dst, timestamp, fps);
+            switch (vi.BitsPerComponent())
+            {
+                case 8:frameBuf = new AVSFYUVBuf<8>(frame, vi); break;
+                case 10: frameBuf = new AVSFYUVBuf<10>(frame, vi); break;
+                case 16: frameBuf = new AVSFYUVBuf<16>(frame, vi); break;
+                default: env->ThrowError("This is not supported format."); break;
+            }            
+
+            float fps = m_fps > 0 ? m_fps : (float)vi.fps_numerator / vi.fps_denominator;
+
+            REFERENCE_TIME timestamp;
+
+            if (!vfr)
+                timestamp = (REFERENCE_TIME)(10000000i64 * n / fps);
+            else
+                timestamp = (REFERENCE_TIME)(10000000 * vfr->TimeStampFromFrameNumber(n));
+
+
+            Render(frameBuf->subpic, timestamp, fps);
+
+            frameBuf->WriteTo(frame);
+
+            delete frameBuf;
+        }       
 
         return(frame);
     }
@@ -854,8 +1134,13 @@ AVSValue __cdecl MaskSubCreate(AVSValue args, void* user_data, IScriptEnvironmen
                utf8));
 }
 
-extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit2(IScriptEnvironment* env)
+const AVS_Linkage* AVS_linkage;
+
+extern "C" __declspec(dllexport)
+const char* __stdcall AvisynthPluginInit3(IScriptEnvironment * env, const AVS_Linkage* const vectors)
 {
+    AVS_linkage = vectors;
+
     env->AddFunction("VobSub", "cs[utf8]b", VobSubCreateS, 0);
 #ifdef _VSMOD
     env->AddFunction("TextSubMod", "c[file]s[charset]i[fps]f[vfr]s[utf8]b", TextSubCreateGeneral, 0);
@@ -874,8 +1159,6 @@ extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit2(IScri
 //
 // VapourSynth interface
 //
-
-#include <emmintrin.h>
 
 namespace VapourSynth {
 #include <VapourSynth.h>
