@@ -948,6 +948,11 @@ public:
 
     CAvisynthFilter(PClip c, IScriptEnvironment* env, VFRTranslator *_vfr = 0) : GenericVideoFilter(c), vfr(_vfr) {}
 
+    int __stdcall SetCacheHints(int cachehints, int frame_range) override
+    {
+        return cachehints == CACHE_GET_MTMODE ? MT_SERIALIZED : 0;
+    }
+
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment* env)
     {
         PVideoFrame frame = child->GetFrame(n, env);
@@ -981,13 +986,13 @@ public:
         }
         else
         {
-            AVSFFrameBuf* frameBuf = nullptr;
+            ::std::unique_ptr<AVSFFrameBuf> frameBuf;
 
             switch (vi.BitsPerComponent())
             {
-                case 8:frameBuf = new AVSFYUVBuf<8>(frame, vi); break;
-                case 10: frameBuf = new AVSFYUVBuf<10>(frame, vi); break;
-                case 16: frameBuf = new AVSFYUVBuf<16>(frame, vi); break;
+                case 8: frameBuf = ::std::make_unique<AVSFYUVBuf<8>>(frame, vi); break;
+                case 10: frameBuf = ::std::make_unique<AVSFYUVBuf<10>>(frame, vi); break;
+                case 16: frameBuf = ::std::make_unique<AVSFYUVBuf<16>>(frame, vi); break;
                 default: env->ThrowError("This is not supported format."); break;
             }            
 
@@ -1004,8 +1009,6 @@ public:
             Render(frameBuf->subpic, timestamp, fps);
 
             frameBuf->WriteTo(frame);
-
-            delete frameBuf;
         }       
 
         return(frame);
