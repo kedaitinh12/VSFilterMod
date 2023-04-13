@@ -1165,28 +1165,26 @@ namespace VapourSynth {
 
 	class VSFRGBBuf : public VSFFrameBuf
 	{
-		VSFrameRef* tmp;
+        std::unique_ptr<uint8_t[]> buffer;
 		const VSAPI* api;
 		const VSFilterData* d;
 
 	public:
 		~VSFRGBBuf()
 		{
-			if (tmp)
-				api->freeFrame(tmp);
 		}
 
 		VSFRGBBuf(const VSAPI* api, VSCore *core, const VSFilterData* d, const VSFrameRef* frame)
 			: api(api), d(d)
 		{
-			tmp = api->newVideoFrame(api->getFormatPreset(pfCompatBGR32, core), d->vi->width, d->vi->height, nullptr, core);
+            buffer = std::make_unique<uint8_t[]>(d->vi->width * d->vi->height * 4);
 
 			const int srcStride = api->getStride(frame, 0);
-			const int tmpStride = api->getStride(tmp, 0);
+			const int tmpStride = d->vi->width*4;
 			const uint8_t * srcpR = api->getReadPtr(frame, 0);
 			const uint8_t * srcpG = api->getReadPtr(frame, 1);
 			const uint8_t * srcpB = api->getReadPtr(frame, 2);
-			uint8_t * VS_RESTRICT tmpp = api->getWritePtr(tmp, 0);
+			uint8_t * VS_RESTRICT tmpp = buffer.get();
 
 			tmpp += tmpStride * (d->vi->height - 1);
 
@@ -1207,16 +1205,16 @@ namespace VapourSynth {
 			subpic.w = d->vi->width;
 			subpic.h = d->vi->height;
 			subpic.pitch = tmpStride;
-			subpic.bits = api->getWritePtr(tmp, 0);
+			subpic.bits = buffer.get();
 			subpic.bpp = 32;
 			subpic.type = MSP_RGB32;
 		}
 
 		void WriteTo(VSFrameRef* frame) override
 		{
-			const int tmpStride = api->getStride(tmp, 0);
+			const int tmpStride = d->vi->width * 4;
 			const int dstStride = api->getStride(frame, 0);
-			const uint8_t * tmpp = api->getReadPtr(tmp, 0);
+			const uint8_t * tmpp = buffer.get();
 			uint8_t * VS_RESTRICT dstpR = api->getWritePtr(frame, 0);
 			uint8_t * VS_RESTRICT dstpG = api->getWritePtr(frame, 1);
 			uint8_t * VS_RESTRICT dstpB = api->getWritePtr(frame, 2);
