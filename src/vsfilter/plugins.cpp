@@ -886,6 +886,18 @@ public:
         subpic.bitsV = BufDatas[2];
         subpic.bpp = 8;
 
+        if (BITDEPTH > 8)
+        {
+            subpic2.w = vi.width;
+            subpic2.h = vi.height;
+            subpic2.pitch = BufStrides[0];
+            subpic2.pitchUV = BufStrides[1];
+            subpic2.bits = BufDatas2[0];
+            subpic2.bitsU = BufDatas2[1];
+            subpic2.bitsV = BufDatas2[2];
+            subpic2.bpp = 8;
+        }
+
         if (BITDEPTH <= 8)
             subpic.type = vi.pixel_type == VideoInfo::CS_YV12 ? (s_fSwapUV ? MSP_IYUV : MSP_YV12) :
             vi.pixel_type == VideoInfo::CS_IYUV ? (s_fSwapUV ? MSP_YV12 : MSP_IYUV) :
@@ -943,10 +955,12 @@ public:
 
 class CAvisynthFilter : public GenericVideoFilter, virtual public CFilter
 {
+    bool accurate;
+
 public:
     VFRTranslator *vfr;
 
-    CAvisynthFilter(PClip c, IScriptEnvironment* env, VFRTranslator *_vfr = 0) : GenericVideoFilter(c), vfr(_vfr) {}
+    CAvisynthFilter(PClip c, IScriptEnvironment* env, VFRTranslator *_vfr = 0, bool _accurate = false) : GenericVideoFilter(c), vfr(_vfr), accurate(_accurate) {}
 
     int __stdcall SetCacheHints(int cachehints, int frame_range) override
     {
@@ -1005,8 +1019,10 @@ public:
             else
                 timestamp = (REFERENCE_TIME)(10000000 * vfr->TimeStampFromFrameNumber(n));
 
-
             Render(frameBuf->subpic, timestamp, fps);
+
+            if (accurate && frameBuf->subpic2.bits)
+               Render(frameBuf->subpic2, timestamp, fps);
 
             frameBuf->WriteTo(frame);
         }       
@@ -1018,9 +1034,9 @@ public:
 class CVobSubAvisynthFilter : public CVobSubFilter, public CAvisynthFilter
 {
 public:
-    CVobSubAvisynthFilter(PClip c, const char* fn, IScriptEnvironment* env, bool utf8)
+    CVobSubAvisynthFilter(PClip c, const char* fn, IScriptEnvironment* env, bool utf8, bool accurate)
         : CVobSubFilter(utf8 ? CString(Utf8ToWideChar(fn).get()) : CString(fn))
-        , CAvisynthFilter(c, env)
+        , CAvisynthFilter(c, env, nullptr, accurate)
     {
         if(!m_pSubPicProvider)
             env->ThrowError("VobSub: Can't open \"%s\"", fn);
@@ -1032,15 +1048,15 @@ AVSValue __cdecl VobSubCreateS(AVSValue args, void* user_data, IScriptEnvironmen
     bool utf8 = false;
     if (args[2].Defined())
         utf8 = args[2].AsBool(false);
-    return(new CVobSubAvisynthFilter(args[0].AsClip(), args[1].AsString(), env, utf8));
+    return(new CVobSubAvisynthFilter(args[0].AsClip(), args[1].AsString(), env, utf8, args[3].AsBool(false)));
 }
 
 class CTextSubAvisynthFilter : public CTextSubFilter, public CAvisynthFilter
 {
 public:
-    CTextSubAvisynthFilter(PClip c, IScriptEnvironment* env, const char* fn, int CharSet = DEFAULT_CHARSET, float fps = -1, VFRTranslator *vfr = 0, bool utf8 = false) //vfr patch
+    CTextSubAvisynthFilter(PClip c, IScriptEnvironment* env, const char* fn, int CharSet = DEFAULT_CHARSET, float fps = -1, VFRTranslator *vfr = 0, bool utf8 = false, bool accurate = false) //vfr patch
         : CTextSubFilter(utf8 ? CString(Utf8ToWideChar(fn).get()) : CString(fn), CharSet, fps)
-        , CAvisynthFilter(c, env, vfr)
+        , CAvisynthFilter(c, env, vfr, accurate)
     {
         if(!m_pSubPicProvider)
 #ifdef _VSMOD
@@ -1074,7 +1090,8 @@ AVSValue __cdecl TextSubCreateGeneral(AVSValue args, void* user_data, IScriptEnv
                args[2].AsInt(DEFAULT_CHARSET),
                args[3].AsFloat(-1),
                vfr,
-               utf8));
+               utf8,
+               args[6].AsBool(false)));
 }
 
 AVSValue __cdecl TextSubSwapUV(AVSValue args, void* user_data, IScriptEnvironment* env)
@@ -1134,7 +1151,8 @@ AVSValue __cdecl MaskSubCreate(AVSValue args, void* user_data, IScriptEnvironmen
                args[5].AsInt(DEFAULT_CHARSET),
                args[3].AsFloat(-1),
                vfr,
-               utf8));
+               utf8,
+               args[8].AsBool(false)));
 }
 
 const AVS_Linkage* AVS_linkage;
@@ -1144,11 +1162,11 @@ const char* __stdcall AvisynthPluginInit3(IScriptEnvironment * env, const AVS_Li
 {
     AVS_linkage = vectors;
 
-    env->AddFunction("VobSub", "cs[utf8]b", VobSubCreateS, 0);
+    env->AddFunction("VobSub", "cs[utf8]b[accurate]b", VobSubCreateS, 0);
 #ifdef _VSMOD
-    env->AddFunction("TextSubMod", "c[file]s[charset]i[fps]f[vfr]s[utf8]b", TextSubCreateGeneral, 0);
+    env->AddFunction("TextSubMod", "c[file]s[charset]i[fps]f[vfr]s[utf8]b[accurate]b", TextSubCreateGeneral, 0);
     env->AddFunction("TextSubModSwapUV", "b", TextSubSwapUV, 0);
-    env->AddFunction("MaskSubMod", "[file]s[width]i[height]i[fps]f[length]i[charset]i[vfr]s[utf8]b", MaskSubCreate, 0);
+    env->AddFunction("MaskSubMod", "[file]s[width]i[height]i[fps]f[length]i[charset]i[vfr]s[utf8]b[accurate]b", MaskSubCreate, 0);
 #else
     env->AddFunction("TextSub", "c[file]s[charset]i[fps]f[vfr]s", TextSubCreateGeneral, 0);
     env->AddFunction("TextSubSwapUV", "b", TextSubSwapUV, 0);
